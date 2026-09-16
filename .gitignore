@@ -1,0 +1,55 @@
+# Unreal Engine generated files
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+
+# Visual Studio generated project and user files
+.vs/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.VC.opendb
+*.VC.db-shm
+*.VC.db-wal
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# Editor-specific local settings
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Unreal generated plugin files
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+
+# Build products
+# Add explicit exceptions if a future plugin requires prebuilt binaries.
+*.pdb
+*.obj
+*.dll
+*.exe
+*.lib
+*.exp
+*.ilk
+*.iobj
+*.ipdb
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# Local assistant scratch files
+/work/
+
+# Keep Content, Config, Source, .uproject files and required Build resources.
+# Assets must not be excluded solely because they are large.
