@@ -53,3 +53,11 @@ Plugins/*/Intermediate/
 
 # Keep Content, Config, Source, .uproject files and required Build resources.
 # Assets must not be excluded solely because they are large.
+
+# Local packaged builds and manual backups (keep required Build/ resources)
+/PackagedBuilds/
+/Backups/
+
+# Local crash and profiling captures
+*.dmp
+*.utrace
