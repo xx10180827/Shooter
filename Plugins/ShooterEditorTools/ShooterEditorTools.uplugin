@@ -1,0 +1,17 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0",
+  "FriendlyName": "Shooter Blueprint Tools",
+  "Description": "Editor-only C++ helpers for inspecting and migrating Shooter Blueprint graphs.",
+  "Category": "Editor",
+  "EnabledByDefault": true,
+  "CanContainContent": false,
+  "Modules": [
+    {
+      "Name": "ShooterEditorTools",
+      "Type": "Editor",
+      "LoadingPhase": "Default"
+    }
+  ]
+}

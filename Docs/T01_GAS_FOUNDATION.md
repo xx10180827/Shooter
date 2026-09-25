@@ -1,7 +1,7 @@
 # T01 GAS 基础实施与编辑器接入
 
-日期：2026-09-22  
-项目：`D:\UE5_My_Project\MyShoot 5.5`  
+日期：2026-09-22<br>
+项目：`D:\UE5_My_Project\MyShoot 5.5`<br>
 状态：**T01 完成。原生构建和自动验证通过；用户已确认角色蓝图接入、血量初始化和运行表现正常。**
 
 ## 1. 本次范围与实际改动
@@ -100,7 +100,7 @@ MyShoot.GAS.Foundation 已通过以下行为检查：
 | 项目蓝图编译检查 | 7 个蓝图，0 错误 / 6 编译警告 / 0 加载失败，退出码 0 |
 | 敌人重设父类与属性验收 | 用户确认通过；175→178 为输入笔误 |
 | 玩家重设父类与玩法回归 | 用户在补充确认中反馈结果正常 |
-| Git 提交 / 推送 | 未执行 |
+| Git 提交 / 推送 | c7b258f 已推送到 origin/develop |
 
 修改前的 Source 与 .uproject 已保存在 Saved/T01/Before-20260922-103810。当前蓝图 / 配置哈希清单位于 Saved/T01/asset-baseline.csv；现有资源的完整历史备份见 T00 文档。
 
@@ -134,7 +134,7 @@ GAS 测试中的一条警告：没有配置 GameplayCueNotifyPaths，引擎回�
 
 原有 Shooter_idle / Boot_Shooter_AnimationBP 的 6 条线程安全编译警告仍待处理。日志还显示 HeroFPP_Skeleton / HeroTPP_Skeleton 引用旧 /Engine/EngineMeshes/Humanoid；该引用在 T00 日志中也已存在，本轮未改动骨骼资源。它不阻塞当前蓝图编译；原动画表现仍按人工验收确认。
 
-首轮失败的自动化日志与报告保留排查用途，最终结论以带 Final 的报告为准。本轮未提交或推送。
+首轮失败的自动化日志与报告保留排查用途，最终结论以带 Final 的报告为准。本阶段已在用户验收后以 c7b258f 提交并推送至 origin/develop。
 
 ## 10. 用户验收（2026-09-22）
 

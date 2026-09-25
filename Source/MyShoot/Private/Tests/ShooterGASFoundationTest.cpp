@@ -1,3 +1,4 @@
+// 自动验证：属性初始化、数值约束及控制器切换后保持血量。
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Misc/AutomationTest.h"
@@ -8,8 +9,8 @@
 #include "GameFramework/WorldSettings.h"
 #include "AbilitySystemComponent.h"
 #include "GameplayEffect.h"
-#include "../MyShooter.h"
-#include "../ShooterAttributeSet.h"
+#include "Characters/MyShooter.h"
+#include "GAS/Attributes/ShooterAttributeSet.h"
 #include "UObject/UnrealType.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FShooterGASFoundationTest,
@@ -32,7 +33,7 @@ bool FShooterGASFoundationTest::RunTest(const FString& Parameters)
     };
     World->InitializeActorsForPlay(FURL());
     World->BeginPlay();
-    // No GameMode exists in this isolated world to send the normal match-start notification.
+    // 隔离测试世界没有 GameMode，手动派发开始通知以触发角色 BeginPlay。
     World->GetWorldSettings()->NotifyBeginPlay();
     TestTrue(TEXT("Test world has started play"), World->HasBegunPlay());
 
@@ -44,7 +45,7 @@ bool FShooterGASFoundationTest::RunTest(const FString& Parameters)
         return false;
     }
 
-    // Simulate an edited Blueprint class default before BeginPlay.
+    // 在 BeginPlay 前修改初始配置，模拟蓝图类默认值。
     FFloatProperty* InitialHealth = FindFProperty<FFloatProperty>(
         AShooterCharacterBase::StaticClass(), TEXT("InitialMaxHealth"));
     if (!TestNotNull(TEXT("Designer health configuration exists"), InitialHealth))
@@ -67,7 +68,7 @@ bool FShooterGASFoundationTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Initial effect sets configured MaxHealth"), Character->GetGASMaxHealth(), 175.0f);
     TestEqual(TEXT("Initial effect starts at full health"), Character->GetGASHealth(), 175.0f);
 
-    // Transient test effects exercise GAS, not the future production damage entry.
+    // 临时测试效果用于验证 GAS 属性机制；生产伤害入口由独立测试覆盖。
     auto ApplyHealthDelta = [ASC](float Delta)
     {
         UGameplayEffect* Effect = NewObject<UGameplayEffect>(GetTransientPackage());
@@ -96,10 +97,13 @@ bool FShooterGASFoundationTest::RunTest(const FString& Parameters)
     Controller->Possess(Character);
     TestEqual(TEXT("Repeated possession preserves health"), Character->GetGASHealth(), 150.0f);
 
+    ApplyHealthDelta(500.0f);
+    TestEqual(TEXT("Living health cannot exceed MaxHealth"), Character->GetGASHealth(), 175.0f);
     ApplyHealthDelta(-500.0f);
     TestEqual(TEXT("Health cannot fall below zero"), Character->GetGASHealth(), 0.0f);
+    TestTrue(TEXT("Lethal effect enters death"), Character->HasGASDeathStarted());
     ApplyHealthDelta(500.0f);
-    TestEqual(TEXT("Health cannot exceed MaxHealth"), Character->GetGASHealth(), 175.0f);
+    TestEqual(TEXT("Healing does not resurrect a dead character"), Character->GetGASHealth(), 0.0f);
 
     Character->Destroy();
     TestFalse(TEXT("EndPlay clears GAS readiness"), Character->IsGASInitialized());

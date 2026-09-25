@@ -5,7 +5,7 @@
 #include "AttributeSet.h"
 #include "ShooterAttributeSet.generated.h"
 
-// Sole owner of GAS health. Gameplay reactions belong to the character.
+// 唯一的生命值数据源：负责数值范围约束；死亡与表现由角色处理。
 UCLASS()
 class MYSHOOT_API UShooterAttributeSet : public UAttributeSet
 {
@@ -14,6 +14,7 @@ class MYSHOOT_API UShooterAttributeSet : public UAttributeSet
 public:
     UShooterAttributeSet();
 
+    // GAS 标准宏生成属性描述、读值、写值和初始化接口；血量仍由此属性集统一持有。
     GAMEPLAYATTRIBUTE_PROPERTY_GETTER(UShooterAttributeSet, Health)
     GAMEPLAYATTRIBUTE_VALUE_GETTER(Health)
     GAMEPLAYATTRIBUTE_VALUE_SETTER(Health)
@@ -24,6 +25,7 @@ public:
     GAMEPLAYATTRIBUTE_VALUE_SETTER(MaxHealth)
     GAMEPLAYATTRIBUTE_VALUE_INITTER(MaxHealth)
 
+    // 同时约束当前值和基础值，效果执行后再处理最大血量改变带来的裁剪。
     virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
     virtual void PreAttributeBaseChange(const FGameplayAttribute& Attribute, float& NewValue) const override;
     virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;

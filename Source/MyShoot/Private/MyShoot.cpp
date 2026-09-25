@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// MyShoot 游戏模块：注册项目模块并提供公共基础声明。
 
 #include "MyShoot.h"
 #include "Modules/ModuleManager.h"

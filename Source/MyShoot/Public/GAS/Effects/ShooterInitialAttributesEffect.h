@@ -4,7 +4,7 @@
 #include "GameplayEffect.h"
 #include "ShooterInitialAttributesEffect.generated.h"
 
-// Instant startup effect; sets MaxHealth before Health using one configured value.
+// 初始属性瞬时效果：先写最大血量，再写当前血量，统一使用角色配置值。
 UCLASS()
 class MYSHOOT_API UShooterInitialAttributesEffect : public UGameplayEffect
 {

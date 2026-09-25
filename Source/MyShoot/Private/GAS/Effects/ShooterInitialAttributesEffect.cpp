@@ -1,6 +1,6 @@
-#include "ShooterInitialAttributesEffect.h"
+#include "GAS/Effects/ShooterInitialAttributesEffect.h"
 #include "NativeGameplayTags.h"
-#include "ShooterAttributeSet.h"
+#include "GAS/Attributes/ShooterAttributeSet.h"
 
 UE_DEFINE_GAMEPLAY_TAG_STATIC(TAG_Data_InitialHealth, "Data.InitialHealth");
 
@@ -13,9 +13,11 @@ UShooterInitialAttributesEffect::UShooterInitialAttributesEffect()
 {
     DurationPolicy = EGameplayEffectDurationType::Instant;
 
+    // 实际初始值由角色通过 Data.InitialHealth 传入，效果类不写死角色血量。
     FSetByCallerFloat InitialHealth;
     InitialHealth.DataTag = GetInitialHealthTag();
 
+    // 顺序不能颠倒：先提高上限，避免当前血量被旧上限裁剪。
     FGameplayModifierInfo MaxHealthModifier;
     MaxHealthModifier.Attribute = UShooterAttributeSet::GetMaxHealthAttribute();
     MaxHealthModifier.ModifierOp = EGameplayModOp::Override;
