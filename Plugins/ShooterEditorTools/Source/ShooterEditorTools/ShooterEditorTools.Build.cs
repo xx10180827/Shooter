@@ -8,7 +8,7 @@ public class ShooterEditorTools : ModuleRules
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine" });
         PrivateDependencyModuleNames.AddRange(new string[] {
-            "UnrealEd", "BlueprintGraph", "KismetCompiler", "Json", "MyShoot", "InputCore"
+            "UnrealEd", "BlueprintGraph", "KismetCompiler", "Json", "MyShoot", "InputCore", "UMG", "UMGEditor", "Slate", "SlateCore", "AssetRegistry", "RenderCore", "RHI", "AIModule", "SlateRHIRenderer"
         });
     }
 }

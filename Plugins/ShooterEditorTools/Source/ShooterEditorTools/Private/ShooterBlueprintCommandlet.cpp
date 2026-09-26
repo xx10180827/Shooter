@@ -1,5 +1,6 @@
 #include "ShooterBlueprintCommandlet.h"
 #include "ShooterBlueprintWiring.h"
+#include "ShooterReloadWiring.h"
 #include "Engine/Blueprint.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
@@ -179,6 +180,34 @@ int32 UShooterBlueprintCommandlet::Main(const FString& Params)
         {
             UE_LOG(LogShooterBlueprintTool, Error, TEXT("%s"), *OperationResult);
             return 3;
+        }
+        UE_LOG(LogShooterBlueprintTool, Display, TEXT("%s"), *OperationResult);
+    }
+
+    if (FParse::Param(*Params, TEXT("MigrateT05")))
+    {
+        if (!ShooterReloadWiring::Migrate(Blueprint, OperationResult))
+        {
+            UE_LOG(LogShooterBlueprintTool, Error, TEXT("%s"), *OperationResult);
+            return 5;
+        }
+        UE_LOG(LogShooterBlueprintTool, Display, TEXT("%s"), *OperationResult);
+    }
+    if (FParse::Param(*Params, TEXT("RefreshT05Montage")))
+    {
+        if (!ShooterReloadWiring::RefreshMontage(OperationResult))
+        {
+            UE_LOG(LogShooterBlueprintTool, Error, TEXT("%s"), *OperationResult);
+            return 7;
+        }
+        UE_LOG(LogShooterBlueprintTool, Display, TEXT("%s"), *OperationResult);
+    }
+    if (FParse::Param(*Params, TEXT("VerifyT05")))
+    {
+        if (!ShooterReloadWiring::Verify(Blueprint, OperationResult))
+        {
+            UE_LOG(LogShooterBlueprintTool, Error, TEXT("%s"), *OperationResult);
+            return 6;
         }
         UE_LOG(LogShooterBlueprintTool, Display, TEXT("%s"), *OperationResult);
     }

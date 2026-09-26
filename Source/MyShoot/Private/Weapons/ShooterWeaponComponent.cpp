@@ -3,8 +3,8 @@
 #include "Characters/ShooterCharacterBase.h"
 #include "Combat/ShooterDamageLibrary.h"
 #include "GAS/Abilities/ShooterFireAbility.h"
+#include "GAS/Abilities/ShooterReloadAbility.h"
 #include "GAS/ShooterGameplayTags.h"
-#include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 
 UShooterWeaponComponent::UShooterWeaponComponent()
@@ -17,12 +17,15 @@ void UShooterWeaponComponent::BeginPlay()
 {
     Super::BeginPlay();
 
-    // 防御非法类默认值；每个新角色从满弹匣开始，T05 再提供换弹入口。
+    // 防御非法类默认值；每个新角色从满弹匣与配置的备用弹药开始。
     Damage = FMath::IsFinite(Damage) ? FMath::Max(Damage, 0.01f) : 25.0f;
     FireInterval = FMath::IsFinite(FireInterval) ? FMath::Max(FireInterval, 0.01f) : 0.1f;
     Range = FMath::IsFinite(Range) ? FMath::Max(Range, 1.0f) : 10000.0f;
     MagazineCapacity = FMath::Max(MagazineCapacity, 1);
     CurrentAmmo = MagazineCapacity;
+    InitialReserveAmmo = FMath::Max(InitialReserveAmmo, 0);
+    ReserveAmmo = InitialReserveAmmo;
+    ReloadDuration = FMath::IsFinite(ReloadDuration) ? FMath::Max(ReloadDuration, 0.01f) : 1.5f;
 
     AShooterCharacterBase* Character = Cast<AShooterCharacterBase>(GetOwner());
     if (!Character || !Character->HasAuthority() || !Character->IsGASInitialized())
@@ -34,6 +37,7 @@ void UShooterWeaponComponent::BeginPlay()
     UAbilitySystemComponent* ASC = Character->GetAbilitySystemComponent();
     AbilitySystem = ASC;
     FireAbilityHandle = ASC->GiveAbility(FGameplayAbilitySpec(UShooterFireAbility::StaticClass(), 1, INDEX_NONE, this));
+    ReloadAbilityHandle = ASC->GiveAbility(FGameplayAbilitySpec(UShooterReloadAbility::StaticClass(), 1, INDEX_NONE, this));
     ReloadTagChangedHandle = ASC->RegisterGameplayTagEvent(
         ShooterGameplayTags::State_Reloading, EGameplayTagEventType::NewOrRemoved)
         .AddUObject(this, &UShooterWeaponComponent::HandleReloadTagChanged);
@@ -42,17 +46,24 @@ void UShooterWeaponComponent::BeginPlay()
 void UShooterWeaponComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     // 组件移除或退出关卡时，撤销自己授予的能力与委托，避免旧对象继续收到回调。
+    bShuttingDown = true;
     if (UAbilitySystemComponent* ASC = AbilitySystem.Get())
     {
         ASC->RegisterGameplayTagEvent(ShooterGameplayTags::State_Reloading,
             EGameplayTagEventType::NewOrRemoved).Remove(ReloadTagChangedHandle);
         StopFiring();
+        CancelReloading();
         if (GetOwner()->HasAuthority() && FireAbilityHandle.IsValid())
         {
             ASC->ClearAbility(FireAbilityHandle);
         }
+        if (GetOwner()->HasAuthority() && ReloadAbilityHandle.IsValid())
+        {
+            ASC->ClearAbility(ReloadAbilityHandle);
+        }
     }
     FireAbilityHandle = FGameplayAbilitySpecHandle();
+    ReloadAbilityHandle = FGameplayAbilitySpecHandle();
     AbilitySystem.Reset();
     Super::EndPlay(EndPlayReason);
 }
@@ -81,16 +92,20 @@ bool UShooterWeaponComponent::IsFiring() const
     return Spec && Spec->IsActive();
 }
 
-bool UShooterWeaponComponent::CanFire() const
+bool UShooterWeaponComponent::CanUseWeapon() const
 {
     const AShooterCharacterBase* Character = Cast<AShooterCharacterBase>(GetOwner());
     const UAbilitySystemComponent* ASC = AbilitySystem.Get();
-    return !IsBeingDestroyed() && IsValid(Character) && !Character->IsActorBeingDestroyed()
+    return !bShuttingDown && !bReloadEnding && !IsBeingDestroyed()
+        && IsValid(Character) && !Character->IsActorBeingDestroyed()
         && Character->HasAuthority() && Character->IsGASInitialized()
         && !Character->HasGASDeathStarted() && Character->GetGASHealth() > 0.0f
-        && CurrentAmmo > 0 && ASC
-        && !ASC->HasMatchingGameplayTag(ShooterGameplayTags::State_Dead)
-        && !ASC->HasMatchingGameplayTag(ShooterGameplayTags::State_Reloading);
+        && ASC && !ASC->HasMatchingGameplayTag(ShooterGameplayTags::State_Dead);
+}
+
+bool UShooterWeaponComponent::CanFire() const
+{
+    return CanUseWeapon() && CurrentAmmo > 0 && !IsReloading();
 }
 
 float UShooterWeaponComponent::GetTimeUntilNextShot() const
@@ -152,5 +167,73 @@ void UShooterWeaponComponent::HandleReloadTagChanged(const FGameplayTag Tag, int
     if (NewCount > 0)
     {
         StopFiring();
+    }
+}
+
+bool UShooterWeaponComponent::StartReloading()
+{
+    return CanReload() && ReloadAbilityHandle.IsValid()
+        && AbilitySystem->TryActivateAbility(ReloadAbilityHandle);
+}
+
+void UShooterWeaponComponent::CancelReloading()
+{
+    if (UAbilitySystemComponent* ASC = AbilitySystem.Get())
+    {
+        ASC->CancelAbilityHandle(ReloadAbilityHandle);
+    }
+}
+
+bool UShooterWeaponComponent::IsReloading() const
+{
+    const UAbilitySystemComponent* ASC = AbilitySystem.Get();
+    return ASC && ASC->HasMatchingGameplayTag(ShooterGameplayTags::State_Reloading);
+}
+
+bool UShooterWeaponComponent::CanReload() const
+{
+    return CanCompleteReload() && !IsReloading();
+}
+
+bool UShooterWeaponComponent::CanCompleteReload() const
+{
+    // 正常完成时能力仍持有换弹标签，此处只检查角色、弹匣和备用弹药。
+    return CanUseWeapon() && CurrentAmmo < MagazineCapacity && ReserveAmmo > 0;
+}
+
+bool UShooterWeaponComponent::CommitReloadAmmo(int32& OutOldAmmo, int32& OutOldReserve)
+{
+    if (!CanCompleteReload())
+    {
+        return false;
+    }
+    const int32 Transfer = FMath::Min(MagazineCapacity - CurrentAmmo, ReserveAmmo);
+    OutOldAmmo = CurrentAmmo;
+    OutOldReserve = ReserveAmmo;
+    CurrentAmmo += Transfer;
+    ReserveAmmo -= Transfer;
+    return Transfer > 0;
+}
+
+void UShooterWeaponComponent::PublishReloadEnd(bool bSucceeded, bool bNotify, int32 OldAmmo, int32 OldReserve)
+{
+    // GAS 已清除标签；先发布同一次转移的两个数值，再开放下一次输入。
+    const auto CanNotify = [this]()
+    {
+        return IsValid(this) && !IsBeingDestroyed() && !bShuttingDown
+            && IsValid(GetOwner()) && !GetOwner()->IsActorBeingDestroyed();
+    };
+    if (bSucceeded && CanNotify())
+    {
+        OnAmmoChanged.Broadcast(OldAmmo, CurrentAmmo);
+        if (CanNotify())
+        {
+            OnReserveAmmoChanged.Broadcast(OldReserve, ReserveAmmo);
+        }
+    }
+    bReloadEnding = false;
+    if (bNotify && CanNotify())
+    {
+        OnReloadFinished.Broadcast(bSucceeded);
     }
 }

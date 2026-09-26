@@ -11,10 +11,10 @@ public class MyShoot : ModuleRules
         PublicDependencyModuleNames.AddRange(new string[]
         {
             "Core", "CoreUObject", "Engine", "InputCore",
-            "GameplayAbilities", "GameplayTags", "GameplayTasks"
+            "GameplayAbilities", "GameplayTags", "GameplayTasks", "AIModule", "UMG"
         });
 
-        // AI 控制器仅在角色死亡实现和测试中使用，无需成为公共接口依赖。
-        PrivateDependencyModuleNames.AddRange(new string[] { "AIModule" });
+        // AIController 与 UserWidget 出现在公共头文件；Slate 仅供内部界面/测试使用。
+        PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
     }
 }
