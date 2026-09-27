@@ -8,6 +8,7 @@
 #include "ShooterWeaponComponent.generated.h"
 
 class AShooterBulletVisual;
+class USoundBase;
 class UAbilitySystemComponent;
 class UShooterFireAbility;
 class UShooterReloadAbility;
@@ -99,6 +100,12 @@ protected:
     /** 视线射程，单位为 UE 厘米。 */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter|Weapon", meta = (ClampMin = "1.0"))
     float Range = 10000.0f;
+
+    /** 仅成功扣弹发射时播放一次；空弹、换弹和冷却拒绝均不播放。 */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|Weapon|Audio")
+    TObjectPtr<USoundBase> FireSound;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|Weapon|Audio", meta=(ClampMin="0", ClampMax="2"))
+    float FireSoundVolume = 0.65f;
 
     // 可见子弹只负责飞行，不参与碰撞或伤害；蓝图配置网格和材质。
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|Weapon|Visual")

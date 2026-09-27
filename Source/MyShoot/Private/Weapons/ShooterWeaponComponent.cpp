@@ -9,6 +9,8 @@
 #include "GAS/Abilities/ShooterReloadAbility.h"
 #include "GAS/ShooterGameplayTags.h"
 #include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 
 UShooterWeaponComponent::UShooterWeaponComponent()
 {
@@ -155,6 +157,12 @@ bool UShooterWeaponComponent::TryFireOneShot()
     // 伤害可能引发任意蓝图事件；销毁后不继续广播。表现事件没有扣血、扣弹职责。
     if (IsValid(this) && !IsBeingDestroyed() && !Character->IsActorBeingDestroyed())
     {
+        // 本地玩家采用 2D 枪声，避免第一人称枪口距离导致忽大忽小；不用 UI 音频，暂停时一起暂停。
+        // 枪声不再交给蓝图或动画通知，确保单发只播放一次。
+        if (FireSound && GetWorld()->GetNetMode() != NM_DedicatedServer)
+        {
+            UGameplayStatics::PlaySound2D(this, FireSound, FireSoundVolume, 1.0f, 0.0f, nullptr, Character, false);
+        }
         // 枪口到射线端点的可见模型；只额外裁剪表现路径，绝不再次结算伤害。
         if (BulletVisualClass && GetWorld()->GetNetMode() != NM_DedicatedServer)
         {

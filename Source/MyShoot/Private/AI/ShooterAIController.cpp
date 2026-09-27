@@ -6,6 +6,12 @@
 #include "GameFramework/PlayerController.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "TimerManager.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
+#include "Sound/SoundAttenuation.h"
 
 AShooterAIController::AShooterAIController()
 {
@@ -29,6 +35,7 @@ void AShooterAIController::OnPossess(APawn* InPawn)
     AttackInterval = Safe(AttackInterval, AttackWindup, 1.25f);
     NextAttackTime = 0;
     NextMoveRequestTime = 0;
+    ControlledCharacter->OnGASDeathConfirmed.AddUniqueDynamic(this, &AShooterAIController::HandleOwnerDeath);
     ControlledCharacter->OnGASHealthChanged.AddUniqueDynamic(this, &AShooterAIController::HandleOwnerHealth);
     // OnPossess 可能早于 Pawn BeginPlay，首轮定时决策会等待 GAS 初始化。
     GetWorldTimerManager().SetTimer(DecisionTimer, this, &AShooterAIController::UpdateCombat, DecisionInterval, true);
@@ -161,6 +168,8 @@ void AShooterAIController::FinishAttack()
     if (CanDamageTarget())
     {
         AShooterCharacterBase* Target = CombatTarget.Get();
+        // 实际开火与伤害处于同一结算点，躲开前摇时不会误播枪声。
+        PlayAttackPresentation();
         UShooterDamageLibrary::ApplyGASDamage(ControlledCharacter.Get(), Target, AttackDamage,
             ControlledCharacter.Get(), FHitResult());
     }
@@ -172,6 +181,7 @@ void AShooterAIController::FinishAttack()
 
 void AShooterAIController::CancelPendingAttack()
 {
+    StopAttackPresentation();
     GetWorldTimerManager().ClearTimer(AttackTimer);
     bAttackPending = false;
 }
@@ -183,6 +193,7 @@ void AShooterAIController::StopCombat(bool bDead)
     SetCombatTarget(nullptr);
     if (AShooterCharacterBase* ControlledPawn = ControlledCharacter.Get())
     {
+        ControlledPawn->OnGASDeathConfirmed.RemoveDynamic(this, &AShooterAIController::HandleOwnerDeath);
         ControlledPawn->OnGASHealthChanged.RemoveDynamic(this, &AShooterAIController::HandleOwnerHealth);
     }
     ControlledCharacter.Reset();
@@ -210,4 +221,34 @@ void AShooterAIController::EndPlay(const EEndPlayReason::Type Reason)
 {
     StopCombat(CombatState == EShooterAIState::Dead);
     Super::EndPlay(Reason);
+}
+
+void AShooterAIController::PlayAttackPresentation()
+{
+    AShooterCharacterBase* ControlledPawn = ControlledCharacter.Get();
+    if (!ControlledPawn || GetNetMode() == NM_DedicatedServer) { return; }
+    if (AttackMontage) { ControlledPawn->PlayAnimMontage(AttackMontage); }
+    if (AttackSound)
+    {
+        // 单次非循环音效，世界暂停时随游戏音频暂停，不在 Tick 中反复触发。
+        UGameplayStatics::PlaySoundAtLocation(this, AttackSound, ControlledPawn->GetActorLocation(),
+            AttackSoundVolume, 1.0f, 0.0f, AttackSoundAttenuation);
+    }
+}
+
+void AShooterAIController::StopAttackPresentation()
+{
+    // 只停止本控制器的攻击蒙太奇，不影响蓝图死亡动画或其他蒙太奇。
+    AShooterCharacterBase* ControlledPawn = ControlledCharacter.Get();
+    UAnimInstance* Anim = ControlledPawn && ControlledPawn->GetMesh() ? ControlledPawn->GetMesh()->GetAnimInstance() : nullptr;
+    if (Anim && AttackMontage && Anim->Montage_IsActive(AttackMontage))
+    {
+        Anim->Montage_Stop(0.06f, AttackMontage);
+    }
+}
+
+void AShooterAIController::HandleOwnerDeath(AShooterCharacterBase* DeadCharacter)
+{
+    // 在 OnGASDeathStarted 蓝图事件之前结束攻击，避免覆盖死亡姿势。
+    StopCombat(true);
 }

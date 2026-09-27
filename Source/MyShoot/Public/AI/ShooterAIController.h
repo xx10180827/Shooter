@@ -3,6 +3,9 @@
 #include "AIController.h"
 #include "ShooterAIController.generated.h"
 class AShooterCharacterBase;
+class UAnimMontage;
+class USoundBase;
+class USoundAttenuation;
 
 UENUM(BlueprintType)
 enum class EShooterAIState : uint8 { Idle, Chasing, Attacking, Dead };
@@ -43,13 +46,27 @@ protected:
     float AttackWindup = 0.3f;
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|AI", meta=(ClampMin="0.05"))
     float DecisionInterval = 0.2f;
-    /** 表现接口不结算伤害；可在控制器蓝图中给受控角色播放攻击蒙太奇。 */
+    /** 前摇结束且目标仍有效时播放；仅表现，不通过动画通知追加伤害。 */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|AI|Presentation")
+    TObjectPtr<UAnimMontage> AttackMontage;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|AI|Presentation")
+    TObjectPtr<USoundBase> AttackSound;
+    /** 敌人枪声使用空间衰减；玩家本地枪声由武器组件独立播放。 */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|AI|Presentation")
+    TObjectPtr<USoundAttenuation> AttackSoundAttenuation;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|AI|Presentation", meta=(ClampMin="0", ClampMax="2"))
+    float AttackSoundVolume = 0.65f;
+    /** 前摇表现扩展接口；开火蒙太奇和枪声统一在有效攻击结算时播放。 */
     UFUNCTION(BlueprintImplementableEvent, Category="Shooter|AI")
     void OnAttackStarted(AShooterCharacterBase* Target, float Windup);
 private:
     void UpdateCombat();
     void FinishAttack();
     void CancelPendingAttack();
+    void PlayAttackPresentation();
+    void StopAttackPresentation();
+    UFUNCTION()
+    void HandleOwnerDeath(AShooterCharacterBase* DeadCharacter);
     void StopCombat(bool bDead);
     bool IsOwnerAlive() const;
     bool CanDamageTarget() const;
