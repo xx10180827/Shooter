@@ -1,4 +1,5 @@
 #include "AI/ShooterAIController.h"
+#include "Game/ShooterGameMode.h"
 #include "Characters/ShooterCharacterBase.h"
 #include "Combat/ShooterDamageLibrary.h"
 #include "Engine/World.h"
@@ -81,10 +82,15 @@ bool AShooterAIController::HasClearShot(AShooterCharacterBase* Target) const
 bool AShooterAIController::CanDamageTarget() const
 {
     const AShooterCharacterBase* Target = CombatTarget.Get();
-    return IsOwnerAlive() && IsValid(Target) && !Target->IsActorBeingDestroyed()
+    return AShooterGameMode::IsCombatAllowed(this) && IsOwnerAlive() && IsValid(Target) && !Target->IsActorBeingDestroyed()
         && Target->IsGASInitialized() && !Target->HasGASDeathStarted() && Target->GetGASHealth() > 0
         && FVector::DistSquared(ControlledCharacter->GetActorLocation(), Target->GetActorLocation()) <= FMath::Square(AttackRange)
         && HasClearShot(CombatTarget.Get());
+}
+
+void AShooterAIController::SuspendCombat()
+{
+    SetCombatTarget(nullptr);
 }
 
 void AShooterAIController::UpdateCombat()
@@ -94,6 +100,7 @@ void AShooterAIController::UpdateCombat()
         if (ControlledCharacter.IsValid() && ControlledCharacter->HasGASDeathStarted()) { StopCombat(true); }
         return;
     }
+    if (!AShooterGameMode::IsCombatAllowed(this)) { SuspendCombat(); return; }
     AShooterCharacterBase* Target = CombatTarget.Get();
     if (Target && (!IsValid(Target) || Target->IsActorBeingDestroyed() || Target->HasGASDeathStarted()
         || Target->GetGASHealth() <= 0 || FVector::DistSquared(Target->GetActorLocation(), GetPawn()->GetActorLocation()) > FMath::Square(LoseTargetRange)))

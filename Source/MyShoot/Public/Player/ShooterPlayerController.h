@@ -1,10 +1,13 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "Game/ShooterGameMode.h"
 #include "ShooterPlayerController.generated.h"
 class UShooterHealthWidget;
+class UShooterAmmoWidget;
+class UShooterMenuWidget;
 
-/** 本地玩家 HUD 生命周期：只添加到屏幕一次，换 Pawn 重新订阅，退出时解绑移除。 */
+/** 本地界面与输入模式切换；GameMode 负责规则，控制器负责展示和生命周期。 */
 UCLASS()
 class MYSHOOT_API AShooterPlayerController : public APlayerController
 {
@@ -12,15 +15,26 @@ class MYSHOOT_API AShooterPlayerController : public APlayerController
 public:
     UFUNCTION(BlueprintPure, Category="Shooter|HUD")
     UShooterHealthWidget* GetHealthWidget() const { return HealthWidget; }
+    UShooterAmmoWidget* GetAmmoWidget() const { return AmmoWidget; }
+    UShooterMenuWidget* GetMenuWidget() const { return MenuWidget; }
 protected:
     virtual void BeginPlay() override;
+    virtual void SetupInputComponent() override;
     virtual void OnPossess(APawn* InPawn) override;
     virtual void OnUnPossess() override;
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|HUD")
     TSubclassOf<UShooterHealthWidget> HealthWidgetClass;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|HUD")
+    TSubclassOf<UShooterAmmoWidget> AmmoWidgetClass;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|HUD")
+    TSubclassOf<UShooterMenuWidget> MenuWidgetClass;
 private:
     void RefreshHUD();
-    UPROPERTY(Transient)
-    TObjectPtr<UShooterHealthWidget> HealthWidget;
+    void ToggleGameMenu();
+    UFUNCTION() void HandleRoundChanged(EShooterRoundState State);
+    UPROPERTY(Transient) TObjectPtr<UShooterHealthWidget> HealthWidget;
+    UPROPERTY(Transient) TObjectPtr<UShooterAmmoWidget> AmmoWidget;
+    UPROPERTY(Transient) TObjectPtr<UShooterMenuWidget> MenuWidget;
+    TWeakObjectPtr<AShooterGameMode> ObservedGameMode;
 };

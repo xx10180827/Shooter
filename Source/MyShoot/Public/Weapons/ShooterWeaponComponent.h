@@ -7,6 +7,7 @@
 #include "Engine/HitResult.h"
 #include "ShooterWeaponComponent.generated.h"
 
+class AShooterBulletVisual;
 class UAbilitySystemComponent;
 class UShooterFireAbility;
 class UShooterReloadAbility;
@@ -98,6 +99,14 @@ protected:
     /** 视线射程，单位为 UE 厘米。 */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter|Weapon", meta = (ClampMin = "1.0"))
     float Range = 10000.0f;
+
+    // 可见子弹只负责飞行，不参与碰撞或伤害；蓝图配置网格和材质。
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|Weapon|Visual")
+    TSubclassOf<AShooterBulletVisual> BulletVisualClass;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|Weapon|Visual", meta=(ClampMin="100"))
+    float BulletVisualSpeed = 18000.0f;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|Weapon|Visual")
+    FName MuzzleComponentName = TEXT("Muzzle");
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Shooter|Weapon", meta = (ClampMin = "1"))
     int32 MagazineCapacity = 30;

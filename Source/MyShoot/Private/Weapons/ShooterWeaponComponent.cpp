@@ -1,4 +1,7 @@
 #include "Weapons/ShooterWeaponComponent.h"
+#include "Weapons/ShooterBulletVisual.h"
+#include "Game/ShooterGameMode.h"
+#include "Components/SceneComponent.h"
 #include "AbilitySystemComponent.h"
 #include "Characters/ShooterCharacterBase.h"
 #include "Combat/ShooterDamageLibrary.h"
@@ -96,7 +99,7 @@ bool UShooterWeaponComponent::CanUseWeapon() const
 {
     const AShooterCharacterBase* Character = Cast<AShooterCharacterBase>(GetOwner());
     const UAbilitySystemComponent* ASC = AbilitySystem.Get();
-    return !bShuttingDown && !bReloadEnding && !IsBeingDestroyed()
+    return AShooterGameMode::IsCombatAllowed(this) && !bShuttingDown && !bReloadEnding && !IsBeingDestroyed()
         && IsValid(Character) && !Character->IsActorBeingDestroyed()
         && Character->HasAuthority() && Character->IsGASInitialized()
         && !Character->HasGASDeathStarted() && Character->GetGASHealth() > 0.0f
@@ -152,6 +155,26 @@ bool UShooterWeaponComponent::TryFireOneShot()
     // 伤害可能引发任意蓝图事件；销毁后不继续广播。表现事件没有扣血、扣弹职责。
     if (IsValid(this) && !IsBeingDestroyed() && !Character->IsActorBeingDestroyed())
     {
+        // 枪口到射线端点的可见模型；只额外裁剪表现路径，绝不再次结算伤害。
+        if (BulletVisualClass && GetWorld()->GetNetMode() != NM_DedicatedServer)
+        {
+            FVector Muzzle = Start;
+            TInlineComponentArray<USceneComponent*> Components(Character);
+            for (USceneComponent* Component : Components)
+            {
+                if (Component->GetFName() == MuzzleComponentName) { Muzzle = Component->GetComponentLocation(); break; }
+            }
+            FVector VisualEnd = bHit ? Hit.ImpactPoint : End;
+            FHitResult Obstruction;
+            if (GetWorld()->LineTraceSingleByChannel(Obstruction, Muzzle, VisualEnd, TraceChannel, QueryParams))
+            {
+                VisualEnd = Obstruction.ImpactPoint;
+            }
+            FActorSpawnParameters Spawn; Spawn.Owner = Character;
+            Spawn.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+            if (AShooterBulletVisual* Bullet = GetWorld()->SpawnActor<AShooterBulletVisual>(BulletVisualClass,
+                Muzzle, (VisualEnd - Muzzle).Rotation(), Spawn)) { Bullet->Launch(VisualEnd, BulletVisualSpeed); }
+        }
         OnAmmoChanged.Broadcast(OldAmmo, CurrentAmmo);
         if (IsValid(this) && !IsBeingDestroyed() && !Character->IsActorBeingDestroyed())
         {

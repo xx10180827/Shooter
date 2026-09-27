@@ -1,5 +1,6 @@
 #include "Characters/ShooterCharacterBase.h"
 #include "AbilitySystemComponent.h"
+#include "Game/ShooterGameMode.h"
 #include "GAS/Attributes/ShooterAttributeSet.h"
 #include "GAS/Effects/ShooterInitialAttributesEffect.h"
 #include "GAS/ShooterGameplayTags.h"
@@ -49,6 +50,7 @@ void AShooterCharacterBase::BeginPlay()
             UShooterAttributeSet::GetHealthAttribute()).AddUObject(this, &AShooterCharacterBase::HandleHealthChanged);
     }
     Super::BeginPlay();
+    if (AShooterGameMode* GM = Cast<AShooterGameMode>(GetWorld()->GetAuthGameMode())) { GM->RegisterCombatant(this); }
 }
 
 void AShooterCharacterBase::InitializeGAS()
@@ -141,6 +143,8 @@ void AShooterCharacterBase::BeginGASDeath()
     // 先设置死亡标记和标签，防止后续回调重入时再次扣血、回血或激活能力。
     bGASDeathStarted = true;
     ShooterAbilitySystemComponent->AddLooseGameplayTag(ShooterGameplayTags::State_Dead);
+    if (IsActorBeingDestroyed()) { return; }
+    OnGASDeathConfirmed.Broadcast(this);
     if (IsActorBeingDestroyed()) { return; }
     ShooterAbilitySystemComponent->CancelAllAbilities();
     if (IsActorBeingDestroyed())

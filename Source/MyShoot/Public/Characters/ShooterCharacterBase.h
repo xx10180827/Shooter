@@ -5,6 +5,9 @@
 #include "GameFramework/Character.h"
 #include "ShooterCharacterBase.generated.h"
 
+class AShooterCharacterBase;
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FShooterDeathConfirmed, AShooterCharacterBase*, Character);
+
 class UAbilitySystemComponent;
 class UShooterAttributeSet;
 struct FOnAttributeChangeData;
@@ -19,6 +22,10 @@ class MYSHOOT_API AShooterCharacterBase : public ACharacter, public IAbilitySyst
 
 public:
     AShooterCharacterBase();
+
+    // 死亡标记建立后、蓝图表现前广播，即使表现立即销毁角色也不会漏掉对局判定。
+    UPROPERTY(BlueprintAssignable, Category="Shooter|Death")
+    FShooterDeathConfirmed OnGASDeathConfirmed;
 
     // 对外通知：HUD 或受击表现订阅血量变化，不再维护第二份 Health。
     UPROPERTY(BlueprintAssignable, Category = "Shooter|GAS")

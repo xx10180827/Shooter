@@ -21,6 +21,8 @@ public:
     /** 更换目标会撤销旧攻击；默认自动寻找本地玩家，测试或后续感知模块可显式设置。 */
     UFUNCTION(BlueprintCallable, Category="Shooter|AI")
     void SetCombatTarget(AShooterCharacterBase* Target);
+    // 菜单/结算时立即撤销前摇与移动；保留低频定时器以便继续游戏。
+    void SuspendCombat();
 protected:
     virtual void OnPossess(APawn* InPawn) override;
     virtual void OnUnPossess() override;
