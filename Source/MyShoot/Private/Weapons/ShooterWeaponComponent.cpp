@@ -27,11 +27,16 @@ void UShooterWeaponComponent::BeginPlay()
     FireInterval = FMath::IsFinite(FireInterval) ? FMath::Max(FireInterval, 0.01f) : 0.1f;
     Range = FMath::IsFinite(Range) ? FMath::Max(Range, 1.0f) : 10000.0f;
     MagazineCapacity = FMath::Max(MagazineCapacity, 1);
+    const int32 PreviousAmmo = CurrentAmmo;
+    const int32 PreviousReserve = ReserveAmmo;
     CurrentAmmo = MagazineCapacity;
     InitialReserveAmmo = FMath::Max(InitialReserveAmmo, 0);
     ReserveAmmo = InitialReserveAmmo;
     ReloadDuration = FMath::IsFinite(ReloadDuration) ? FMath::Max(ReloadDuration, 0.01f) : 1.5f;
 
+    // HUD 可能在控制器 BeginPlay 时已订阅组件；初始化也必须广播，避免启动顺序变化时显示 0 发。
+    OnAmmoChanged.Broadcast(PreviousAmmo, CurrentAmmo);
+    OnReserveAmmoChanged.Broadcast(PreviousReserve, ReserveAmmo);
     AShooterCharacterBase* Character = Cast<AShooterCharacterBase>(GetOwner());
     if (!Character || !Character->HasAuthority() || !Character->IsGASInitialized())
     {

@@ -74,7 +74,7 @@ bool FShooterGASAITest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Wall blocks attacks"), Target->GetGASHealth(), 90.0f);
     Wall->Destroy();
     Advance(0.22f);
-    Target->SetActorLocation(FVector(900,0,0));
+    Target->SetActorLocation(FVector(1800,0,0));
     Advance(0.5f);
     TestEqual(TEXT("Leaving range during windup avoids damage"), Target->GetGASHealth(), 90.0f);
     Target->SetActorLocation(FVector(4000,0,0));

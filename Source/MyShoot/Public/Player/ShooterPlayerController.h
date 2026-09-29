@@ -6,6 +6,8 @@
 class UShooterHealthWidget;
 class UShooterAmmoWidget;
 class UShooterMenuWidget;
+class UShooterAimReticleWidget;
+class UShooterAimComponent;
 
 /** 本地界面与输入模式切换；GameMode 负责规则，控制器负责展示和生命周期。 */
 UCLASS()
@@ -31,10 +33,14 @@ protected:
     TSubclassOf<UShooterMenuWidget> MenuWidgetClass;
 private:
     void RefreshHUD();
+    void RefreshCrosshair();
+    UFUNCTION() void HandleAimingChanged(bool bIsAiming);
     void ToggleGameMenu();
     UFUNCTION() void HandleRoundChanged(EShooterRoundState State);
     UPROPERTY(Transient) TObjectPtr<UShooterHealthWidget> HealthWidget;
     UPROPERTY(Transient) TObjectPtr<UShooterAmmoWidget> AmmoWidget;
     UPROPERTY(Transient) TObjectPtr<UShooterMenuWidget> MenuWidget;
+    UPROPERTY(Transient) TObjectPtr<UShooterAimReticleWidget> AimReticleWidget;
+    TWeakObjectPtr<UShooterAimComponent> ObservedAim;
     TWeakObjectPtr<AShooterGameMode> ObservedGameMode;
 };

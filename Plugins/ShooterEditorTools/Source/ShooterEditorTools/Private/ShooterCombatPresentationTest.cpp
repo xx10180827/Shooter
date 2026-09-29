@@ -64,7 +64,7 @@ bool FShooterCombatPresentationTest::RunTest(const FString& Parameters)
     // 明确进入下一轮前摇再离开攻击范围，动画和伤害均不触发。
     AI->SuspendCombat(); Advance(0.1f); AI->SetCombatTarget(Target);
     const float Before = Target->GetGASHealth();
-    Target->SetActorLocation(FVector(900,0,0)); Advance(1.4f);
+    Target->SetActorLocation(FVector(1800,0,0)); Advance(1.4f);
     TestEqual(TEXT("Out of range has no delayed damage"), Target->GetGASHealth(), Before);
     TestFalse(TEXT("Out of range has no firing animation"), Anim->Montage_IsPlaying(Montage));
     Target->SetActorLocation(FVector(180,0,0)); AI->SetCombatTarget(Target);

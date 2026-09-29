@@ -2,6 +2,8 @@
 #include "UI/ShooterHealthWidget.h"
 #include "UI/ShooterAmmoWidget.h"
 #include "UI/ShooterMenuWidget.h"
+#include "UI/ShooterAimReticleWidget.h"
+#include "Weapons/ShooterAimComponent.h"
 #include "Characters/ShooterCharacterBase.h"
 #include "Weapons/ShooterWeaponComponent.h"
 #include "Components/InputComponent.h"
@@ -57,6 +59,26 @@ void AShooterPlayerController::RefreshHUD()
         MenuWidget = CreateWidget<UShooterMenuWidget>(this, MenuWidgetClass);
         if (MenuWidget) { MenuWidget->AddToPlayerScreen(100); }
     }
+    if (!AimReticleWidget)
+    {
+        AimReticleWidget = CreateWidget<UShooterAimReticleWidget>(this, UShooterAimReticleWidget::StaticClass());
+        if (AimReticleWidget)
+        {
+            AimReticleWidget->SetVisibility(ESlateVisibility::Collapsed);
+            AimReticleWidget->AddToPlayerScreen(12);
+        }
+    }
+    // 更换角色时解除旧订阅；准星随状态事件更新，不在 Tick 中遍历界面。
+    if (ObservedAim.IsValid())
+    {
+        ObservedAim->OnAimingChanged.RemoveDynamic(this, &AShooterPlayerController::HandleAimingChanged);
+    }
+    ObservedAim = GetPawn() ? GetPawn()->FindComponentByClass<UShooterAimComponent>() : nullptr;
+    if (ObservedAim.IsValid())
+    {
+        ObservedAim->OnAimingChanged.AddUniqueDynamic(this, &AShooterPlayerController::HandleAimingChanged);
+    }
+    RefreshCrosshair();
     if (HealthWidget) { HealthWidget->ObserveCharacter(Cast<AShooterCharacterBase>(GetPawn())); }
     if (AmmoWidget) { AmmoWidget->ObserveWeapon(GetPawn() ? GetPawn()->FindComponentByClass<UShooterWeaponComponent>() : nullptr); }
 }
@@ -77,16 +99,7 @@ void AShooterPlayerController::HandleRoundChanged(EShooterRoundState State)
     bShowMouseCursor = !bPlaying;
     if (HealthWidget) { HealthWidget->SetVisibility(bPlaying ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed); }
     if (AmmoWidget) { AmmoWidget->SetVisibility(bPlaying ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed); }
-    // 原准星仍由原蓝图创建，只随菜单切换可见性，不改旧蓝图节点。
-    TArray<UUserWidget*> Widgets;
-    UWidgetBlueprintLibrary::GetAllWidgetsOfClass(this, Widgets, UUserWidget::StaticClass(), true);
-    for (UUserWidget* Widget : Widgets)
-    {
-        if (Widget && Widget->GetClass()->GetFName() == TEXT("Shooter_UI_C"))
-        {
-            Widget->SetVisibility(bPlaying ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
-        }
-    }
+    RefreshCrosshair();
     if (MenuWidget) { MenuWidget->ShowState(State); }
     if (bPlaying)
     {
@@ -100,11 +113,48 @@ void AShooterPlayerController::HandleRoundChanged(EShooterRoundState State)
         SetInputMode(Mode);
     }
 }
+void AShooterPlayerController::HandleAimingChanged(bool bIsAiming)
+{
+    RefreshCrosshair();
+}
+
+void AShooterPlayerController::RefreshCrosshair()
+{
+    if (!IsLocalController()) { return; }
+    const AShooterCharacterBase* ControlledCharacter = Cast<AShooterCharacterBase>(GetPawn());
+    const bool bShowReticle = ControlledCharacter && ControlledCharacter->GetGASHealth() > 0.f
+        && !ControlledCharacter->HasGASDeathStarted() && AShooterGameMode::IsCombatAllowed(this);
+    const bool bAiming = ObservedAim.IsValid() && ObservedAim->IsAiming();
+
+    // 保留原 Shooter_UI 资产和创建节点：普通视角显示十字，瞄准时仅显示小红点。
+    TArray<UUserWidget*> Widgets;
+    UWidgetBlueprintLibrary::GetAllWidgetsOfClass(this, Widgets, UUserWidget::StaticClass(), true);
+    for (UUserWidget* Widget : Widgets)
+    {
+        if (Widget && Widget->GetClass()->GetFName() == TEXT("Shooter_UI_C")
+            && (!Widget->GetOwningPlayer() || Widget->GetOwningPlayer() == this))
+        {
+            Widget->SetVisibility(bShowReticle && !bAiming
+                ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+        }
+    }
+    if (AimReticleWidget)
+    {
+        AimReticleWidget->SetVisibility(bShowReticle && bAiming
+            ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+    }
+}
 void AShooterPlayerController::OnUnPossess()
 {
     if (HealthWidget) { HealthWidget->ObserveCharacter(nullptr); }
     if (AmmoWidget) { AmmoWidget->ObserveWeapon(nullptr); }
+    if (ObservedAim.IsValid())
+    {
+        ObservedAim->OnAimingChanged.RemoveDynamic(this, &AShooterPlayerController::HandleAimingChanged);
+    }
+    ObservedAim.Reset();
     Super::OnUnPossess();
+    RefreshCrosshair();
 }
 void AShooterPlayerController::EndPlay(const EEndPlayReason::Type Reason)
 {
@@ -112,5 +162,11 @@ void AShooterPlayerController::EndPlay(const EEndPlayReason::Type Reason)
     if (HealthWidget) { HealthWidget->ObserveCharacter(nullptr); HealthWidget->RemoveFromParent(); HealthWidget = nullptr; }
     if (AmmoWidget) { AmmoWidget->ObserveWeapon(nullptr); AmmoWidget->RemoveFromParent(); AmmoWidget = nullptr; }
     if (MenuWidget) { MenuWidget->RemoveFromParent(); MenuWidget = nullptr; }
+    if (ObservedAim.IsValid())
+    {
+        ObservedAim->OnAimingChanged.RemoveDynamic(this, &AShooterPlayerController::HandleAimingChanged);
+    }
+    ObservedAim.Reset();
+    if (AimReticleWidget) { AimReticleWidget->RemoveFromParent(); AimReticleWidget = nullptr; }
     Super::EndPlay(Reason);
 }

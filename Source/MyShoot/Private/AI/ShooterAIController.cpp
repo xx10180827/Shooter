@@ -12,6 +12,10 @@
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
 #include "Sound/SoundAttenuation.h"
+#include "Weapons/ShooterBulletVisual.h"
+#include "Components/SceneComponent.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogShooterAI, Log, All);
 
 AShooterAIController::AShooterAIController()
 {
@@ -28,7 +32,11 @@ void AShooterAIController::OnPossess(APawn* InPawn)
     const auto Safe = [](float Value, float Min, float Fallback) { return FMath::IsFinite(Value) ? FMath::Max(Value, Min) : Fallback; };
     DetectionRange = Safe(DetectionRange, 1, 2000);
     LoseTargetRange = Safe(LoseTargetRange, DetectionRange, 3000);
-    AttackRange = Safe(AttackRange, 1, 220);
+    AttackRange = FMath::Min(Safe(AttackRange, 1, 1200), LoseTargetRange);
+    SightHalfAngle = FMath::Clamp(Safe(SightHalfAngle, 1, 60), 1.f, 180.f);
+    FireHalfAngle = FMath::Clamp(Safe(FireHalfAngle, 1, 15), 1.f, SightHalfAngle);
+    SightMemorySeconds = Safe(SightMemorySeconds, 0, 3);
+    MoveAcceptanceRadius = FMath::Clamp(Safe(MoveAcceptanceRadius, 10.f, 75.f), 10.f, 200.f);
     AttackDamage = Safe(AttackDamage, 0.01f, 10);
     DecisionInterval = Safe(DecisionInterval, 0.05f, 0.2f);
     AttackWindup = Safe(AttackWindup, 0.01f, 0.3f);
@@ -63,6 +71,8 @@ void AShooterAIController::SetCombatTarget(AShooterCharacterBase* Target)
         Previous->OnDestroyed.RemoveDynamic(this, &AShooterAIController::HandleTargetDestroyed);
     }
     CombatTarget = Target;
+    LastSeenTime = -1.0;
+    LastSeenLocation = FVector::ZeroVector;
     StopMovement();
     ClearFocus(EAIFocusPriority::Gameplay);
     if (Target)
@@ -92,7 +102,7 @@ bool AShooterAIController::CanDamageTarget() const
     return AShooterGameMode::IsCombatAllowed(this) && IsOwnerAlive() && IsValid(Target) && !Target->IsActorBeingDestroyed()
         && Target->IsGASInitialized() && !Target->HasGASDeathStarted() && Target->GetGASHealth() > 0
         && FVector::DistSquared(ControlledCharacter->GetActorLocation(), Target->GetActorLocation()) <= FMath::Square(AttackRange)
-        && HasClearShot(CombatTarget.Get());
+        && IsWithinView(CombatTarget.Get(), FireHalfAngle) && HasClearShot(CombatTarget.Get());
 }
 
 void AShooterAIController::SuspendCombat()
@@ -125,7 +135,7 @@ void AShooterAIController::UpdateCombat()
             if (Candidate && Candidate != GetPawn() && Candidate->IsGASInitialized() && !Candidate->HasGASDeathStarted()
                 && Candidate->GetGASHealth() > 0
                 && FVector::DistSquared(Candidate->GetActorLocation(), GetPawn()->GetActorLocation()) <= FMath::Square(DetectionRange)
-                && HasClearShot(Candidate))
+                && CanSeeTarget(Candidate, DetectionRange))
             {
                 SetCombatTarget(Candidate);
                 Target = Candidate;
@@ -134,33 +144,118 @@ void AShooterAIController::UpdateCombat()
         }
         if (!Target) { CombatState = EShooterAIState::Idle; StopMovement(); return; }
     }
-    SetFocus(Target);
     const double Now = GetWorld()->GetTimeSeconds();
-    if (CanDamageTarget())
+    if (!CanSeeTarget(Target, LoseTargetRange))
     {
-        StopMovement();
-        if (!bAttackPending && Now >= NextAttackTime)
-        {
-            CombatState = EShooterAIState::Attacking;
-            bAttackPending = true;
-            NextAttackTime = Now + AttackInterval;
-            GetWorldTimerManager().SetTimer(AttackTimer, this, &AShooterAIController::FinishAttack, AttackWindup, false);
-            OnAttackStarted(Target, AttackWindup);
-        }
+        SearchLastSeenLocation(Now);
+        return;
     }
-    else
+
+    if (CombatState == EShooterAIState::Searching)
+    {
+        // 重新看见目标后撤销旧的固定点路径，允许立刻重新规划可见目标的追踪路径。
+        StopMovement();
+        NextMoveRequestTime = 0;
+    }
+    // 只有真正看见时才更新记忆；墙后移动不会泄露新的目标位置。
+    LastSeenLocation = Target->GetActorLocation();
+    LastSeenTime = Now;
+    SetFocus(Target);
+    const bool bWithinRange = FVector::DistSquared(ControlledCharacter->GetActorLocation(), Target->GetActorLocation())
+        <= FMath::Square(AttackRange);
+    if (!bWithinRange)
     {
         CancelPendingAttack();
-        CombatState = EShooterAIState::Chasing;
-        // 活跃 MoveToActor 自行跟踪目标；失败/结束后限频重试，避免每次决策重新寻路。
-        if (GetMoveStatus() != EPathFollowingStatus::Moving && Now >= NextMoveRequestTime)
-        {
-            MoveToActor(Target, FMath::Max(10.0f, AttackRange * 0.6f), false, true, true, nullptr, true);
-            NextMoveRequestTime = Now + 0.75;
-        }
+        ChaseVisibleTarget(Target);
+        return;
+    }
+
+    // 进入射程就停止追赶；转向与冷却期间也不继续冲向玩家。
+    StopMovement();
+    CombatState = EShooterAIState::Attacking;
+    if (!CanDamageTarget())
+    {
+        CancelPendingAttack();
+        return;
+    }
+    if (!bAttackPending && Now >= NextAttackTime)
+    {
+        bAttackPending = true;
+        NextAttackTime = Now + AttackInterval;
+        GetWorldTimerManager().SetTimer(AttackTimer, this, &AShooterAIController::FinishAttack, AttackWindup, false);
+        OnAttackStarted(Target, AttackWindup);
     }
 }
 
+FVector AShooterAIController::GetFocalPointOnActor(const AActor* Actor) const
+{
+    if (const AShooterCharacterBase* Target = Cast<AShooterCharacterBase>(Actor))
+    {
+        FVector EyeLocation; FRotator EyeRotation;
+        Target->GetActorEyesViewPoint(EyeLocation, EyeRotation);
+        return EyeLocation;
+    }
+    return Super::GetFocalPointOnActor(Actor);
+}
+
+bool AShooterAIController::IsWithinView(AShooterCharacterBase* Target, float HalfAngle) const
+{
+    if (!ControlledCharacter.IsValid() || !IsValid(Target)) { return false; }
+    FVector EyeLocation; FRotator EyeRotation;
+    ControlledCharacter->GetActorEyesViewPoint(EyeLocation, EyeRotation);
+    FVector TargetEye; FRotator UnusedRotation;
+    Target->GetActorEyesViewPoint(TargetEye, UnusedRotation);
+    const FVector Direction = (TargetEye - EyeLocation).GetSafeNormal();
+    return Direction.IsNearlyZero() || FVector::DotProduct(EyeRotation.Vector(), Direction)
+        >= FMath::Cos(FMath::DegreesToRadians(HalfAngle));
+}
+
+bool AShooterAIController::CanSeeTarget(AShooterCharacterBase* Target, float Range) const
+{
+    return ControlledCharacter.IsValid() && IsValid(Target)
+        && FVector::DistSquared(ControlledCharacter->GetActorLocation(), Target->GetActorLocation()) <= FMath::Square(Range)
+        && IsWithinView(Target, SightHalfAngle) && HasClearShot(Target);
+}
+
+void AShooterAIController::ChaseVisibleTarget(AShooterCharacterBase* Target)
+{
+    CombatState = EShooterAIState::Chasing;
+    const double Now = GetWorld()->GetTimeSeconds();
+    // MoveToActor 自行跟随可见目标，只在请求完成或失败后限频重试；不逐帧重建路径。
+    if (GetMoveStatus() != EPathFollowingStatus::Moving && Now >= NextMoveRequestTime)
+    {
+        const EPathFollowingRequestResult::Type Result = MoveToActor(Target, MoveAcceptanceRadius, false, true, true, nullptr, true);
+        // 按需打开 LogShooterAI Verbose 排查地图导航，默认不刷日志。
+        UE_LOG(LogShooterAI, Verbose, TEXT("Move request=%d distance=%.1f navSource=%s navTarget=%s"),
+            int32(Result), FVector::Dist(GetPawn()->GetActorLocation(), Target->GetActorLocation()),
+            *GetPawn()->GetNavAgentLocation().ToString(), *Target->GetNavAgentLocation().ToString());
+        NextMoveRequestTime = Now + 0.75;
+    }
+}
+
+void AShooterAIController::SearchLastSeenLocation(double Now)
+{
+    CancelPendingAttack();
+    if (LastSeenTime < 0 || Now - LastSeenTime >= SightMemorySeconds)
+    {
+        SetCombatTarget(nullptr);
+        return;
+    }
+    if (CombatState != EShooterAIState::Searching)
+    {
+        // 撤销跟踪 Actor 的路径和 Focus，改为固定的最后可见点。
+        StopMovement();
+        ClearFocus(EAIFocusPriority::Gameplay);
+        NextMoveRequestTime = 0;
+    }
+    CombatState = EShooterAIState::Searching;
+    SetFocalPoint(LastSeenLocation);
+    if (GetMoveStatus() != EPathFollowingStatus::Moving && Now >= NextMoveRequestTime)
+    {
+        MoveToLocation(LastSeenLocation, 75.f, false, true, true, true, nullptr, true);
+        NextMoveRequestTime = Now + 0.75;
+    }
+}
 void AShooterAIController::FinishAttack()
 {
     bAttackPending = false;
@@ -175,7 +270,7 @@ void AShooterAIController::FinishAttack()
     }
     if (IsOwnerAlive())
     {
-        CombatState = CombatTarget.IsValid() ? EShooterAIState::Chasing : EShooterAIState::Idle;
+        CombatState = CanDamageTarget() ? EShooterAIState::Attacking : (CombatTarget.IsValid() ? EShooterAIState::Chasing : EShooterAIState::Idle);
     }
 }
 
@@ -227,6 +322,7 @@ void AShooterAIController::PlayAttackPresentation()
 {
     AShooterCharacterBase* ControlledPawn = ControlledCharacter.Get();
     if (!ControlledPawn || GetNetMode() == NM_DedicatedServer) { return; }
+    SpawnAttackBullet();
     if (AttackMontage) { ControlledPawn->PlayAnimMontage(AttackMontage); }
     if (AttackSound)
     {
@@ -251,4 +347,30 @@ void AShooterAIController::HandleOwnerDeath(AShooterCharacterBase* DeadCharacter
 {
     // 在 OnGASDeathStarted 蓝图事件之前结束攻击，避免覆盖死亡姿势。
     StopCombat(true);
+}
+void AShooterAIController::SpawnAttackBullet()
+{
+    AShooterCharacterBase* ControlledPawn = ControlledCharacter.Get();
+    AShooterCharacterBase* Target = CombatTarget.Get();
+    if (!BulletVisualClass || !ControlledPawn || !IsValid(Target)) { return; }
+    FVector Start; FRotator EyeRotation;
+    ControlledPawn->GetActorEyesViewPoint(Start, EyeRotation);
+    TInlineComponentArray<USceneComponent*> Components(ControlledPawn);
+    for (USceneComponent* Component : Components)
+    {
+        if (Component->GetFName() == MuzzleComponentName) { Start = Component->GetComponentLocation(); break; }
+    }
+    FVector End; Target->GetActorEyesViewPoint(End, EyeRotation);
+    // 当前 AI 的扣血仍由 FinishAttack 唯一结算；枪口路径裁剪只防止可见模型穿墙。
+    FCollisionQueryParams Query(SCENE_QUERY_STAT(ShooterAIBulletVisual), false, ControlledPawn);
+    Query.AddIgnoredActor(Target);
+    FHitResult Obstruction;
+    if (GetWorld()->LineTraceSingleByChannel(Obstruction, Start, End, ECC_Visibility, Query)) { End = Obstruction.ImpactPoint; }
+    FActorSpawnParameters Spawn; Spawn.Owner = ControlledPawn;
+    Spawn.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    if (AShooterBulletVisual* Bullet = GetWorld()->SpawnActor<AShooterBulletVisual>(BulletVisualClass, Start, (End-Start).Rotation(), Spawn))
+    {
+        Bullet->SetActorScale3D(FVector(FMath::IsFinite(BulletVisualScale) ? FMath::Clamp(BulletVisualScale, 0.1f, 5.f) : 1.5f));
+        Bullet->Launch(End, BulletVisualSpeed);
+    }
 }

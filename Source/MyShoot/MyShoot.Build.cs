@@ -15,6 +15,6 @@ public class MyShoot : ModuleRules
         });
 
         // AIController 与 UserWidget 出现在公共头文件；Slate 仅供内部界面/测试使用。
-        PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
+        PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore", "NavigationSystem" });
     }
 }
