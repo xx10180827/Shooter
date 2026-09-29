@@ -7,9 +7,10 @@ class UAnimMontage;
 class USoundBase;
 class USoundAttenuation;
 class AShooterBulletVisual;
+class UShooterPatrolComponent;
 
 UENUM(BlueprintType)
-enum class EShooterAIState : uint8 { Idle, Chasing, Attacking, Dead, Searching };
+enum class EShooterAIState : uint8 { Idle, Chasing, Attacking, Dead, Searching, Patrolling };
 
 /** 基础单机 AI：低频决策、NavMesh 追踪、攻击前摇和视线检查，伤害统一进入 GAS。 */
 UCLASS()
@@ -18,6 +19,7 @@ class MYSHOOT_API AShooterAIController : public AAIController
     GENERATED_BODY()
 public:
     AShooterAIController();
+    UShooterPatrolComponent* GetShooterPatrol() const { return ShooterPatrol; }
     UFUNCTION(BlueprintPure, Category="Shooter|AI")
     EShooterAIState GetCombatState() const { return CombatState; }
     UFUNCTION(BlueprintPure, Category="Shooter|AI")
@@ -32,6 +34,9 @@ public:
 protected:
     virtual void OnPossess(APawn* InPawn) override;
     virtual void OnUnPossess() override;
+    virtual void OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result) override;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Shooter|Patrol")
+    TObjectPtr<UShooterPatrolComponent> ShooterPatrol;
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     /** 距离单位为厘米；首次发现还需满足前方视野角和无遮挡条件。 */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|AI", meta=(ClampMin="1"))

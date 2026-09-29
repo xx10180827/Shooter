@@ -1,4 +1,5 @@
 #include "AI/ShooterAIController.h"
+#include "AI/ShooterPatrolComponent.h"
 #include "Game/ShooterGameMode.h"
 #include "Characters/ShooterCharacterBase.h"
 #include "Combat/ShooterDamageLibrary.h"
@@ -21,6 +22,7 @@ AShooterAIController::AShooterAIController()
 {
     // 保留引擎控制器 Tick 更新朝向；决策与寻路请求仍由低频定时器驱动。
     PrimaryActorTick.bCanEverTick = true;
+    ShooterPatrol = CreateDefaultSubobject<UShooterPatrolComponent>(TEXT("ShooterPatrol"));
 }
 
 void AShooterAIController::OnPossess(APawn* InPawn)
@@ -41,6 +43,7 @@ void AShooterAIController::OnPossess(APawn* InPawn)
     DecisionInterval = Safe(DecisionInterval, 0.05f, 0.2f);
     AttackWindup = Safe(AttackWindup, 0.01f, 0.3f);
     AttackInterval = Safe(AttackInterval, AttackWindup, 1.25f);
+    ShooterPatrol->InitializePatrol(this, ControlledCharacter.Get());
     NextAttackTime = 0;
     NextMoveRequestTime = 0;
     ControlledCharacter->OnGASDeathConfirmed.AddUniqueDynamic(this, &AShooterAIController::HandleOwnerDeath);
@@ -65,6 +68,7 @@ void AShooterAIController::SetCombatTarget(AShooterCharacterBase* Target)
     }
     if (Target && CombatTarget.Get() == Target) { return; }
     CancelPendingAttack();
+    ShooterPatrol->SuspendPatrol();
     if (AShooterCharacterBase* Previous = CombatTarget.Get())
     {
         Previous->OnGASHealthChanged.RemoveDynamic(this, &AShooterAIController::HandleTargetHealth);
@@ -142,7 +146,12 @@ void AShooterAIController::UpdateCombat()
                 break;
             }
         }
-        if (!Target) { CombatState = EShooterAIState::Idle; StopMovement(); return; }
+        if (!Target)
+        {
+            CombatState = ShooterPatrol->UpdatePatrol() ? EShooterAIState::Patrolling : EShooterAIState::Idle;
+            if (CombatState == EShooterAIState::Idle) { StopMovement(); }
+            return;
+        }
     }
     const double Now = GetWorld()->GetTimeSeconds();
     if (!CanSeeTarget(Target, LoseTargetRange))
@@ -306,6 +315,12 @@ void AShooterAIController::HandleTargetHealth(float OldHealth, float NewHealth)
     if (NewHealth <= 0) { SetCombatTarget(nullptr); }
 }
 void AShooterAIController::HandleTargetDestroyed(AActor* Actor) { SetCombatTarget(nullptr); }
+void AShooterAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
+{
+    Super::OnMoveCompleted(RequestID, Result);
+    if (ShooterPatrol) { ShooterPatrol->OnMoveFinished(RequestID, Result); }
+}
+
 void AShooterAIController::OnUnPossess()
 {
     const bool bDead = ControlledCharacter.IsValid() && ControlledCharacter->HasGASDeathStarted();

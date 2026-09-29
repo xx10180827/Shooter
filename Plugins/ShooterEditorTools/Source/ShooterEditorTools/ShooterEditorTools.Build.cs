@@ -10,7 +10,7 @@ public class ShooterEditorTools : ModuleRules
         bUseUnity = false;
         PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine" });
         PrivateDependencyModuleNames.AddRange(new string[] {
-            "UnrealEd", "BlueprintGraph", "KismetCompiler", "Json", "MyShoot", "InputCore", "UMG", "UMGEditor", "Slate", "SlateCore", "AssetRegistry", "RenderCore", "RHI", "AIModule", "SlateRHIRenderer", "MeshDescription", "StaticMeshDescription", "AnimGraph", "AnimGraphRuntime", "AudioEditor"
+            "UnrealEd", "BlueprintGraph", "KismetCompiler", "Json", "MyShoot", "InputCore", "UMG", "UMGEditor", "Slate", "SlateCore", "AssetRegistry", "RenderCore", "RHI", "AIModule", "SlateRHIRenderer", "MeshDescription", "StaticMeshDescription", "AnimGraph", "AnimGraphRuntime", "AudioEditor", "NavigationSystem"
         });
     }
 }
