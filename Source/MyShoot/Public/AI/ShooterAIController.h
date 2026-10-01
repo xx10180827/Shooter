@@ -8,9 +8,11 @@ class USoundBase;
 class USoundAttenuation;
 class AShooterBulletVisual;
 class UShooterPatrolComponent;
+class UShooterAwarenessComponent;
+class UShooterCombatMovementComponent;
 
 UENUM(BlueprintType)
-enum class EShooterAIState : uint8 { Idle, Chasing, Attacking, Dead, Searching, Patrolling };
+enum class EShooterAIState : uint8 { Idle, Chasing, Attacking, Dead, Searching, Patrolling, Investigating };
 
 /** 基础单机 AI：低频决策、NavMesh 追踪、攻击前摇和视线检查，伤害统一进入 GAS。 */
 UCLASS()
@@ -29,6 +31,9 @@ public:
     void SetCombatTarget(AShooterCharacterBase* Target);
     // 菜单/结算时立即撤销前摇与移动；保留低频定时器以便继续游戏。
     void SuspendCombat();
+    /** 接收事件位置快照；调查期间仍由原视野检测决定是否发现玩家。 */
+    void InvestigateLocation(const FVector& Location, float Duration);
+    FVector GetInvestigationLocation() const { return InvestigationLocation; }
     /** 与视线/射击检测统一瞄准目标眼睛，避免近距离 Focus 指向脚下或角色中心。 */
     virtual FVector GetFocalPointOnActor(const AActor* Actor) const override;
 protected:
@@ -37,6 +42,10 @@ protected:
     virtual void OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result) override;
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Shooter|Patrol")
     TObjectPtr<UShooterPatrolComponent> ShooterPatrol;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Shooter|Awareness")
+    TObjectPtr<UShooterAwarenessComponent> ShooterAwareness;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Shooter|MovingFire")
+    TObjectPtr<UShooterCombatMovementComponent> CombatMovement;
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     /** 距离单位为厘米；首次发现还需满足前方视野角和无遮挡条件。 */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|AI", meta=(ClampMin="1"))
@@ -105,6 +114,7 @@ private:
     bool CanSeeTarget(AShooterCharacterBase* Target, float Range) const;
     void ChaseVisibleTarget(AShooterCharacterBase* Target);
     void SearchLastSeenLocation(double Now);
+    bool UpdateInvestigation();
     UFUNCTION()
     void HandleOwnerHealth(float OldHealth, float NewHealth);
     UFUNCTION()
@@ -117,6 +127,8 @@ private:
     FTimerHandle AttackTimer;
     FVector LastSeenLocation = FVector::ZeroVector;
     double LastSeenTime = -1.0;
+    FVector InvestigationLocation = FVector::ZeroVector;
+    double InvestigationUntil = -1.0;
     double NextAttackTime = 0.0;
     double NextMoveRequestTime = 0.0;
     bool bAttackPending = false;

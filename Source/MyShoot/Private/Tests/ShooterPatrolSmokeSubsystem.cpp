@@ -226,10 +226,10 @@ bool UShooterPatrolSmokeSubsystem::Step(float DeltaSeconds)
     {
         if (Patrol->IsPatrolling() || Patrol->GetCompletedStops()!=StopsBeforeCombat
             || !Patrol->GetPatrolGoal().Equals(GoalBeforeCombat, 1.f)
-            || !FMath::IsNearlyEqual(TestEnemy->GetCharacterMovement()->MaxWalkSpeed, CombatSpeed))
+            || !FMath::IsNearlyEqual(TestEnemy->GetCharacterMovement()->MaxWalkSpeed, 220.f))
         { Finish(false, TEXT("Combat failed to suspend route or restore speed")); return false; }
         UE_LOG(LogShooterPatrolSmoke, Display, TEXT("Auto-detection interrupted patrol; ranged damage=%.1f speed=%.1f"),
-            100-Player->GetGASHealth(), CombatSpeed);
+            100-Player->GetGASHealth(), TestEnemy->GetCharacterMovement()->MaxWalkSpeed);
         Player->SetActorLocation(FarPlayerPosition);
         HoldPosition = TestEnemy->GetActorLocation(); Phase = 5;
     }

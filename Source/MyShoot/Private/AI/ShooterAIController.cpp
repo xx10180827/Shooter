@@ -1,5 +1,7 @@
 #include "AI/ShooterAIController.h"
 #include "AI/ShooterPatrolComponent.h"
+#include "AI/ShooterAwarenessComponent.h"
+#include "AI/ShooterCombatMovementComponent.h"
 #include "Game/ShooterGameMode.h"
 #include "Characters/ShooterCharacterBase.h"
 #include "Combat/ShooterDamageLibrary.h"
@@ -23,6 +25,9 @@ AShooterAIController::AShooterAIController()
     // 保留引擎控制器 Tick 更新朝向；决策与寻路请求仍由低频定时器驱动。
     PrimaryActorTick.bCanEverTick = true;
     ShooterPatrol = CreateDefaultSubobject<UShooterPatrolComponent>(TEXT("ShooterPatrol"));
+    ShooterAwareness = CreateDefaultSubobject<UShooterAwarenessComponent>(TEXT("ShooterAwareness"));
+    SetPerceptionComponent(*ShooterAwareness);
+    CombatMovement = CreateDefaultSubobject<UShooterCombatMovementComponent>(TEXT("CombatMovement"));
 }
 
 void AShooterAIController::OnPossess(APawn* InPawn)
@@ -44,6 +49,8 @@ void AShooterAIController::OnPossess(APawn* InPawn)
     AttackWindup = Safe(AttackWindup, 0.01f, 0.3f);
     AttackInterval = Safe(AttackInterval, AttackWindup, 1.25f);
     ShooterPatrol->InitializePatrol(this, ControlledCharacter.Get());
+    CombatMovement->InitializeMovement(this, ControlledCharacter.Get());
+    ShooterAwareness->RefreshListener();
     NextAttackTime = 0;
     NextMoveRequestTime = 0;
     ControlledCharacter->OnGASDeathConfirmed.AddUniqueDynamic(this, &AShooterAIController::HandleOwnerDeath);
@@ -69,6 +76,8 @@ void AShooterAIController::SetCombatTarget(AShooterCharacterBase* Target)
     if (Target && CombatTarget.Get() == Target) { return; }
     CancelPendingAttack();
     ShooterPatrol->SuspendPatrol();
+    CombatMovement->Stop();
+    InvestigationUntil = -1.0;
     if (AShooterCharacterBase* Previous = CombatTarget.Get())
     {
         Previous->OnGASHealthChanged.RemoveDynamic(this, &AShooterAIController::HandleTargetHealth);
@@ -148,6 +157,7 @@ void AShooterAIController::UpdateCombat()
         }
         if (!Target)
         {
+            if (UpdateInvestigation()) { return; }
             CombatState = ShooterPatrol->UpdatePatrol() ? EShooterAIState::Patrolling : EShooterAIState::Idle;
             if (CombatState == EShooterAIState::Idle) { StopMovement(); }
             return;
@@ -175,12 +185,13 @@ void AShooterAIController::UpdateCombat()
     if (!bWithinRange)
     {
         CancelPendingAttack();
+        CombatMovement->Stop();
         ChaseVisibleTarget(Target);
         return;
     }
 
-    // 进入射程就停止追赶；转向与冷却期间也不继续冲向玩家。
-    StopMovement();
+    // 射程内一边接近一边攻击；近距离保持安全间隔，不再每次决策都取消路径。
+    CombatMovement->UpdateMovement(Target, AttackRange);
     CombatState = EShooterAIState::Attacking;
     if (!CanDamageTarget())
     {
@@ -244,6 +255,7 @@ void AShooterAIController::ChaseVisibleTarget(AShooterCharacterBase* Target)
 
 void AShooterAIController::SearchLastSeenLocation(double Now)
 {
+    CombatMovement->Stop();
     CancelPendingAttack();
     if (LastSeenTime < 0 || Now - LastSeenTime >= SightMemorySeconds)
     {
@@ -388,4 +400,40 @@ void AShooterAIController::SpawnAttackBullet()
         Bullet->SetActorScale3D(FVector(FMath::IsFinite(BulletVisualScale) ? FMath::Clamp(BulletVisualScale, 0.1f, 5.f) : 1.5f));
         Bullet->Launch(End, BulletVisualSpeed);
     }
+}
+
+// 声音和受击只提供快照。重复枪声更新期限，不在每一发时重启同一条路径。
+void AShooterAIController::InvestigateLocation(const FVector& Location, float Duration)
+{
+    if (!IsOwnerAlive() || !AShooterGameMode::IsCombatAllowed(this) || Location.ContainsNaN()) { return; }
+    if (CombatTarget.IsValid() && CanSeeTarget(CombatTarget.Get(), LoseTargetRange)) { return; }
+    const bool bRestartPath = CombatState != EShooterAIState::Investigating
+        || FVector::DistSquared(Location, InvestigationLocation)>FMath::Square(100.f);
+    if (CombatTarget.IsValid()) { SetCombatTarget(nullptr); }
+    CancelPendingAttack();
+    ShooterPatrol->SuspendPatrol();
+    CombatMovement->Stop();
+    if (bRestartPath) { StopMovement(); NextMoveRequestTime = 0; }
+    InvestigationLocation = Location;
+    InvestigationUntil = GetWorld()->GetTimeSeconds() + FMath::Clamp(Duration, 0.5f, 20.f);
+    CombatState = EShooterAIState::Investigating;
+    SetFocalPoint(InvestigationLocation);
+}
+bool AShooterAIController::UpdateInvestigation()
+{
+    if (InvestigationUntil < 0) { return false; }
+    const double Now = GetWorld()->GetTimeSeconds();
+    if (Now >= InvestigationUntil)
+    {
+        SetCombatTarget(nullptr);
+        return false;
+    }
+    CombatState = EShooterAIState::Investigating;
+    SetFocalPoint(InvestigationLocation);
+    if (GetMoveStatus() != EPathFollowingStatus::Moving && Now >= NextMoveRequestTime)
+    {
+        MoveToLocation(InvestigationLocation, 100.f, false, true, true, true, nullptr, false);
+        NextMoveRequestTime = Now + 0.75;
+    }
+    return true;
 }

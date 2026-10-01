@@ -1,4 +1,5 @@
 #include "Weapons/ShooterWeaponComponent.h"
+#include "Perception/AISense_Hearing.h"
 #include "Weapons/ShooterBulletVisual.h"
 #include "Game/ShooterGameMode.h"
 #include "Components/SceneComponent.h"
@@ -148,6 +149,8 @@ bool UShooterWeaponComponent::TryFireOneShot()
         Character->GetActorEyesViewPoint(Start, Rotation);
     }
 
+    // 已经成功扣弹的一发才产生枪声感知；射空也会被听到，空弹/换弹拒绝不会报告。
+    UAISense_Hearing::ReportNoiseEvent(this, Character->GetActorLocation(), 1.f, Character, 0.f, TEXT("ShooterGunshot"));
     const FVector End = Start + Rotation.Vector() * Range;
     FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(ShooterFire), false, Character);
     FHitResult Hit;

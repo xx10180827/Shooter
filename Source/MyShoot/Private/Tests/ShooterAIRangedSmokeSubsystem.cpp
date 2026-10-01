@@ -150,11 +150,11 @@ bool UShooterAIRangedSmokeSubsystem::Step(float DeltaSeconds)
     else if (Phase == 2 && World->GetTimeSeconds() - ShotTime > 0.6f)
     {
         const float Drift = FVector::Dist(EnemyStart, TestEnemy->GetActorLocation());
-        if (Drift > 10.f || Player->GetGASHealth() != ShotHealth)
+        if (Drift < 50.f || Player->GetGASHealth() != ShotHealth)
         {
-            Finish(false, FString::Printf(TEXT("AI must hold firing position and respect cooldown: drift=%.1f health=%.1f"), Drift, Player->GetGASHealth())); return false;
+            Finish(false, FString::Printf(TEXT("AI must move while respecting firing cooldown: drift=%.1f health=%.1f"), Drift, Player->GetGASHealth())); return false;
         }
-        Finish(true, FString::Printf(TEXT("Actual map auto-acquisition, NavMesh approach, ranged shot over 8m, stationary cooldown passed; finalDistance=%.1f cm."),
+        Finish(true, FString::Printf(TEXT("Actual map auto-acquisition, NavMesh approach, ranged shot over 8m, moving cooldown passed; finalDistance=%.1f cm."),
             FVector::Dist(TestEnemy->GetActorLocation(), Player->GetActorLocation())));
         return false;
     }

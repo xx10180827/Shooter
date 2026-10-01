@@ -1,4 +1,5 @@
 #include "Combat/ShooterDamageLibrary.h"
+#include "Perception/AISense_Damage.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemComponent.h"
 #include "GAS/Attributes/ShooterAttributeSet.h"
@@ -71,5 +72,13 @@ bool UShooterDamageLibrary::ApplyGASDamage(AActor* SourceActor, AActor* TargetAc
     TargetASC->ApplyGameplayEffectSpecToSelf(*Spec.Data.Get());
 
     // 瞬时效果没有持续句柄，用实际血量变化判断伤害是否生效。
-    return TargetASC->GetNumericAttribute(UShooterAttributeSet::GetHealthAttribute()) < HealthBefore;
+    const float HealthAfter = IsValid(TargetASC) ? TargetASC->GetNumericAttribute(UShooterAttributeSet::GetHealthAttribute()) : HealthBefore;
+    const bool bDamaged = HealthAfter < HealthBefore;
+    // 只有真实生效且目标存活的伤害上报受击感知；不额外扣血，也不依赖音效播放。
+    if (bDamaged && HealthAfter > 0 && IsValid(TargetActor) && IsValid(SourceActor))
+    {
+        UAISense_Damage::ReportDamageEvent(TargetActor, TargetActor, SourceActor, HealthBefore-HealthAfter,
+            SourceActor->GetActorLocation(), HitResult.bBlockingHit ? FVector(HitResult.ImpactPoint) : TargetActor->GetActorLocation(), TEXT("ShooterDamage"));
+    }
+    return bDamaged;
 }
