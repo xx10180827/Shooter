@@ -25,6 +25,8 @@ protected:
 private:
     void RefreshAmmo();
     UFUNCTION()
+    void OnWeaponChanged(int32 OldSlot, int32 NewSlot);
+    UFUNCTION()
     void OnAmmoChanged(int32 OldValue, int32 NewValue);
     UFUNCTION()
     void OnReloadStarted(float Duration);

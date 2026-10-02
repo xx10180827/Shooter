@@ -53,7 +53,13 @@ void UShooterFireAbility::FireOrWait()
     // 重新按下时可能仍处于上一发间隔内：等待剩余时间，不重置武器的射速时间戳。
     if (Weapon->GetTimeUntilNextShot() <= 0.0f)
     {
-        Weapon->TryFireOneShot();
+        const bool bFired = Weapon->TryFireOneShot();
+        if (bFired && IsActive() && !Weapon->bAutomatic)
+        {
+            // 半自动武器一轮按下最多发射一发；下一次按下仍遵守该槽的冷却。
+            EndAbility(GetCurrentAbilitySpecHandle(), GetCurrentActorInfo(), GetCurrentActivationInfo(), true, false);
+            return;
+        }
     }
 
     // 命中、死亡或表现回调可能同步取消能力；取消后绝不能再安排下一发。

@@ -7,11 +7,15 @@
 #include "Engine/HitResult.h"
 #include "ShooterWeaponComponent.generated.h"
 
+class UShooterWeaponDefinition;
+class UAnimMontage;
 class AShooterBulletVisual;
 class USoundBase;
 class UAbilitySystemComponent;
 class UShooterFireAbility;
 class UShooterReloadAbility;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FShooterWeaponChanged, int32, OldSlot, int32, NewSlot);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FShooterAmmoChanged, int32, OldAmmo, int32, NewAmmo);  //多播代理
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FShooterShotFired, bool, bBlockingHit, const FHitResult&, HitResult);
@@ -19,7 +23,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FShooterReloadStarted, float, Durati
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FShooterReloadFinished, bool, bSucceeded);
 
 /**
- * 单武器的数据与执行层：集中保存配置、弹匣、备用弹药及射速时间戳。
+ * 武器执行层：配置来自 DataAsset，各槽独立保存弹匣、备用弹药及射速时间戳。
  * 输入通过组件接口交给 GAS；蓝图通过事件播放表现，不重复扣弹或结算伤害。
  */
 UCLASS(ClassGroup = (Shooter), meta = (BlueprintSpawnableComponent))
@@ -29,6 +33,24 @@ class MYSHOOT_API UShooterWeaponComponent : public UActorComponent
 
 public:
     UShooterWeaponComponent();
+
+    /** 槽位从 0 开始。先取消旧能力，再保存状态；非法、死亡、暂停或回调重入时拒绝。 */
+    UFUNCTION(BlueprintCallable, Category="Shooter|Weapon")
+    bool EquipWeapon(int32 Slot);
+    UFUNCTION(BlueprintPure, Category="Shooter|Weapon")
+    int32 GetEquippedSlot() const { return EquippedSlot; }
+    UFUNCTION(BlueprintPure, Category="Shooter|Weapon")
+    int32 GetWeaponCount() const { return RuntimeSlots.Num(); }
+    UFUNCTION(BlueprintPure, Category="Shooter|Weapon")
+    const UShooterWeaponDefinition* GetWeaponDefinition() const;
+    UFUNCTION(BlueprintPure, Category="Shooter|Weapon")
+    FText GetWeaponDisplayName() const;
+    UFUNCTION(BlueprintPure, Category="Shooter|Weapon")
+    UAnimMontage* GetReloadMontage() const;
+    UPROPERTY(BlueprintAssignable, Category="Shooter|Weapon")
+    FShooterWeaponChanged OnWeaponChanged;
+    /** 只在 BeginPlay 前配置负载，主要供关卡生成与测试使用。 */
+    bool ConfigureLoadout(const TArray<UShooterWeaponDefinition*>& Definitions);
 
     /** 请求激活射击能力；重复调用不会叠加连射循环。返回值表示请求被接受。 */
     UFUNCTION(BlueprintCallable, Category = "Shooter|Weapon")
@@ -87,6 +109,9 @@ public:
     FShooterReloadFinished OnReloadFinished;
 
 protected:
+    /** 有效配置数组优先于下面的旧单武器参数；旧参数保留用于旧蓝图对比和兼容。 */
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|Loadout")
+    TArray<TObjectPtr<UShooterWeaponDefinition>> WeaponDefinitions;
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
@@ -131,6 +156,25 @@ protected:
     TEnumAsByte<ECollisionChannel> TraceChannel = ECC_Visibility;
 
 private:
+    // 当前槽的数值缓存仍供旧蓝图 Getter 使用；换槽时写回各自状态，资源本身不变。
+    struct FWeaponRuntimeState
+    {
+        int32 Ammo = 0;
+        int32 Reserve = 0;
+        double NextShotTime = 0;
+    };
+    TArray<FWeaponRuntimeState> RuntimeSlots;
+    int32 EquippedSlot = INDEX_NONE;
+    int32 PelletCount = 1;
+    float SpreadHalfAngle = 0.f;
+    bool bAutomatic = true;
+    bool bSwitchingWeapon = false;
+    bool bResolvingShot = false;
+    void InitializeLoadout();
+    void ApplyDefinition(const UShooterWeaponDefinition* Definition);
+    void SaveCurrentSlot();
+    void SpawnBulletVisual(const FHitResult& Hit, const FVector& Start);
+
     // 规则只供对应能力使用，蓝图不能绕过能力直接扣弹、补弹。
     friend class UShooterFireAbility;
     friend class UShooterReloadAbility;

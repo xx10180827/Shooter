@@ -12,6 +12,13 @@ public:
     virtual void NativeUpdateAnimation(float DeltaSeconds) override;
     void SetShooterAimAlpha(float Value) { ShooterAimAlpha = FMath::Clamp(Value, 0.f, 1.f); }
 protected:
+    /** 仅霰弹枪存活、非换弹时约束左手，原步枪及换弹/死亡动作保持原图。 */
+    UPROPERTY(BlueprintReadOnly, Transient, Category="Shooter|Grip")
+    float ShooterGripAlpha=0.f;
+    UPROPERTY(BlueprintReadOnly, Transient, Category="Shooter|Grip")
+    FVector ShooterGripTarget=FVector::ZeroVector;
+    UPROPERTY(BlueprintReadOnly, Transient, Category="Shooter|Grip")
+    FVector ShooterElbowTarget=FVector::ZeroVector;
     /** 在游戏线程读取组件，动画图只消费缓存值，预览没有 Pawn 时为零。 */
     UPROPERTY(BlueprintReadOnly, Transient, Category="Shooter|Aim")
     float ShooterAimAlpha = 0.f;

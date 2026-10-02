@@ -1,6 +1,7 @@
 #include "Weapons/ShooterWeaponComponent.h"
 #include "Perception/AISense_Hearing.h"
 #include "Weapons/ShooterBulletVisual.h"
+
 #include "Game/ShooterGameMode.h"
 #include "Components/SceneComponent.h"
 #include "AbilitySystemComponent.h"
@@ -22,6 +23,8 @@ UShooterWeaponComponent::UShooterWeaponComponent()
 void UShooterWeaponComponent::BeginPlay()
 {
     Super::BeginPlay();
+
+    InitializeLoadout();
 
     // 防御非法类默认值；每个新角色从满弹匣与配置的备用弹药开始。
     Damage = FMath::IsFinite(Damage) ? FMath::Max(Damage, 0.01f) : 25.0f;
@@ -107,7 +110,7 @@ bool UShooterWeaponComponent::CanUseWeapon() const
 {
     const AShooterCharacterBase* Character = Cast<AShooterCharacterBase>(GetOwner());
     const UAbilitySystemComponent* ASC = AbilitySystem.Get();
-    return AShooterGameMode::IsCombatAllowed(this) && !bShuttingDown && !bReloadEnding && !IsBeingDestroyed()
+    return AShooterGameMode::IsCombatAllowed(this) && !bShuttingDown && !bReloadEnding && !bSwitchingWeapon && !bResolvingShot && !IsBeingDestroyed()
         && IsValid(Character) && !Character->IsActorBeingDestroyed()
         && Character->HasAuthority() && Character->IsGASInitialized()
         && !Character->HasGASDeathStarted() && Character->GetGASHealth() > 0.0f
@@ -131,75 +134,67 @@ bool UShooterWeaponComponent::TryFireOneShot()
         return false;
     }
 
-    // 先扣弹并记录下一次允许时间，外部回调即使再次请求开火也无法重复扣弹。
+    // 发射和广播期间拒绝重入切枪；一次发射只扣一次弹药、播放一次枪声与手臂动画。
+    TGuardValue<bool> ShotGuard(bResolvingShot, true);
     const int32 OldAmmo = CurrentAmmo;
     --CurrentAmmo;
     NextAllowedShotTime = GetWorld()->GetTimeSeconds() + static_cast<double>(FireInterval);
-
-    FVector Start;
-    FRotator Rotation;
+    FVector Start; FRotator Rotation;
     AShooterCharacterBase* Character = CastChecked<AShooterCharacterBase>(GetOwner());
-    if (APlayerController* PC = Cast<APlayerController>(Character->GetController()))
-    {
-        PC->GetPlayerViewPoint(Start, Rotation);
-    }
-    else
-    {
-        // 无玩家控制器时仍可使用角色眼睛朝向，便于自动测试和后续 AI 复用。
-        Character->GetActorEyesViewPoint(Start, Rotation);
-    }
-
-    // 已经成功扣弹的一发才产生枪声感知；射空也会被听到，空弹/换弹拒绝不会报告。
+    if (APlayerController* PC = Cast<APlayerController>(Character->GetController())) { PC->GetPlayerViewPoint(Start, Rotation); }
+    else { Character->GetActorEyesViewPoint(Start, Rotation); }
     UAISense_Hearing::ReportNoiseEvent(this, Character->GetActorLocation(), 1.f, Character, 0.f, TEXT("ShooterGunshot"));
-    const FVector End = Start + Rotation.Vector() * Range;
     FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(ShooterFire), false, Character);
-    FHitResult Hit;
-    const bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, Start, End, TraceChannel, QueryParams);
-    Hit.TraceStart = Start;
-    Hit.TraceEnd = End;
-    if (bHit && Hit.GetActor())
+    TArray<FHitResult> Hits;
+    TMap<AActor*, int32> HitCounts;
+    TMap<AActor*, FHitResult> TargetHits;
+    for (int32 Index=0; Index<PelletCount; ++Index)
     {
-        UShooterDamageLibrary::ApplyGASDamage(Character, Hit.GetActor(), Damage, Character, Hit);
+        const FVector Direction = SpreadHalfAngle > 0.f
+            ? FMath::VRandCone(Rotation.Vector(), FMath::DegreesToRadians(SpreadHalfAngle)) : Rotation.Vector();
+        const FVector End = Start + Direction * Range;
+        FHitResult Hit;
+        GetWorld()->LineTraceSingleByChannel(Hit, Start, End, TraceChannel, QueryParams);
+        Hit.TraceStart = Start; Hit.TraceEnd = End; Hits.Add(Hit);
+        if (Hit.bBlockingHit && Hit.GetActor()) { ++HitCounts.FindOrAdd(Hit.GetActor()); TargetHits.FindOrAdd(Hit.GetActor()) = Hit; }
     }
-
-    // 伤害可能引发任意蓝图事件；销毁后不继续广播。表现事件没有扣血、扣弹职责。
+    // 同一目标的弹丸合并一次 GAS 结算，避免多次死亡/警觉回调；各射线仍独立检查遮挡。
+    for (const auto& Pair : HitCounts)
+    {
+        if (IsValid(Pair.Key)) { UShooterDamageLibrary::ApplyGASDamage(Character, Pair.Key, Damage*Pair.Value, Character, TargetHits[Pair.Key]); }
+    }
     if (IsValid(this) && !IsBeingDestroyed() && !Character->IsActorBeingDestroyed())
     {
-        // 本地玩家采用 2D 枪声，避免第一人称枪口距离导致忽大忽小；不用 UI 音频，暂停时一起暂停。
-        // 枪声不再交给蓝图或动画通知，确保单发只播放一次。
         if (FireSound && GetWorld()->GetNetMode() != NM_DedicatedServer)
-        {
-            UGameplayStatics::PlaySound2D(this, FireSound, FireSoundVolume, 1.0f, 0.0f, nullptr, Character, false);
-        }
-        // 枪口到射线端点的可见模型；只额外裁剪表现路径，绝不再次结算伤害。
-        if (BulletVisualClass && GetWorld()->GetNetMode() != NM_DedicatedServer)
-        {
-            FVector Muzzle = Start;
-            TInlineComponentArray<USceneComponent*> Components(Character);
-            for (USceneComponent* Component : Components)
-            {
-                if (Component->GetFName() == MuzzleComponentName) { Muzzle = Component->GetComponentLocation(); break; }
-            }
-            FVector VisualEnd = bHit ? Hit.ImpactPoint : End;
-            FHitResult Obstruction;
-            if (GetWorld()->LineTraceSingleByChannel(Obstruction, Muzzle, VisualEnd, TraceChannel, QueryParams))
-            {
-                VisualEnd = Obstruction.ImpactPoint;
-            }
-            FActorSpawnParameters Spawn; Spawn.Owner = Character;
-            Spawn.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-            if (AShooterBulletVisual* Bullet = GetWorld()->SpawnActor<AShooterBulletVisual>(BulletVisualClass,
-                Muzzle, (VisualEnd - Muzzle).Rotation(), Spawn)) { Bullet->Launch(VisualEnd, BulletVisualSpeed); }
-        }
+        { UGameplayStatics::PlaySound2D(this, FireSound, FireSoundVolume, 1.f, 0.f, nullptr, Character, false); }
+        for (const auto& Hit : Hits) { SpawnBulletVisual(Hit, Start); }
         OnAmmoChanged.Broadcast(OldAmmo, CurrentAmmo);
         if (IsValid(this) && !IsBeingDestroyed() && !Character->IsActorBeingDestroyed())
         {
-            OnShotFired.Broadcast(bHit, Hit);
+            // 保持旧蓝图单发表现事件；取第一个命中作命中特效，所有弹丸都有可见轨迹。
+            const FHitResult* PresentationHit = &Hits[0];
+            for (const auto& Hit : Hits) { if (Hit.bBlockingHit) { PresentationHit=&Hit; break; } }
+            OnShotFired.Broadcast(PresentationHit->bBlockingHit, *PresentationHit);
         }
     }
     return true;
 }
 
+void UShooterWeaponComponent::SpawnBulletVisual(const FHitResult& Hit, const FVector& Start)
+{
+    if (!BulletVisualClass || GetWorld()->GetNetMode() == NM_DedicatedServer) { return; }
+    FVector Muzzle = Start;
+    TInlineComponentArray<USceneComponent*> Components(GetOwner());
+    for (USceneComponent* Component : Components)
+    { if (Component->GetFName() == MuzzleComponentName) { Muzzle = Component->GetComponentLocation(); break; } }
+    FVector VisualEnd = Hit.bBlockingHit ? FVector(Hit.ImpactPoint) : FVector(Hit.TraceEnd);
+    FHitResult Obstruction;
+    FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(ShooterVisual), false, GetOwner());
+    if (GetWorld()->LineTraceSingleByChannel(Obstruction, Muzzle, VisualEnd, TraceChannel, QueryParams)) { VisualEnd = Obstruction.ImpactPoint; }
+    FActorSpawnParameters Spawn; Spawn.Owner = GetOwner(); Spawn.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    if (AShooterBulletVisual* Bullet = GetWorld()->SpawnActor<AShooterBulletVisual>(BulletVisualClass, Muzzle, (VisualEnd-Muzzle).Rotation(), Spawn))
+    { Bullet->Launch(VisualEnd, BulletVisualSpeed); }
+}
 void UShooterWeaponComponent::HandleReloadTagChanged(const FGameplayTag Tag, int32 NewCount)
 {
     // 换弹状态出现时立即取消连射，不等待下一发定时器；移除标签不会自动恢复射击。

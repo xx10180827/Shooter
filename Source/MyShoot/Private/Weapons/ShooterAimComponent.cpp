@@ -1,6 +1,7 @@
 #include "Weapons/ShooterAimComponent.h"
 #include "Characters/MyShooter.h"
 #include "Weapons/ShooterWeaponComponent.h"
+#include "Weapons/ShooterWeaponDefinition.h"
 #include "AbilitySystemComponent.h"
 #include "GAS/ShooterGameplayTags.h"
 #include "Camera/CameraComponent.h"
@@ -98,6 +99,11 @@ void UShooterAimComponent::ResetAiming()
 }
 UAnimMontage* UShooterAimComponent::GetFireMontage() const
 {
+    if (const auto* Definition=Weapon.IsValid()?Weapon->GetWeaponDefinition():nullptr)
+    {
+        if (bAiming && Definition->AimFireMontage) { return Definition->AimFireMontage; }
+        if (Definition->FireMontage) { return Definition->FireMontage; }
+    }
     return bAiming && AimFireMontage ? AimFireMontage.Get() : HipFireMontage.Get();
 }
 void UShooterAimComponent::HandleDeath(AShooterCharacterBase* DeadCharacter) { ResetAiming(); }
