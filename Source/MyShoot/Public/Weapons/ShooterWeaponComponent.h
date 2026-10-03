@@ -15,6 +15,7 @@ class UAbilitySystemComponent;
 class UShooterFireAbility;
 class UShooterReloadAbility;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FShooterInventoryChanged);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FShooterWeaponChanged, int32, OldSlot, int32, NewSlot);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FShooterAmmoChanged, int32, OldAmmo, int32, NewAmmo);  //多播代理
@@ -40,7 +41,7 @@ public:
     UFUNCTION(BlueprintPure, Category="Shooter|Weapon")
     int32 GetEquippedSlot() const { return EquippedSlot; }
     UFUNCTION(BlueprintPure, Category="Shooter|Weapon")
-    int32 GetWeaponCount() const { return RuntimeSlots.Num(); }
+    int32 GetWeaponCount() const;
     UFUNCTION(BlueprintPure, Category="Shooter|Weapon")
     const UShooterWeaponDefinition* GetWeaponDefinition() const;
     UFUNCTION(BlueprintPure, Category="Shooter|Weapon")
@@ -50,7 +51,17 @@ public:
     UPROPERTY(BlueprintAssignable, Category="Shooter|Weapon")
     FShooterWeaponChanged OnWeaponChanged;
     /** 只在 BeginPlay 前配置负载，主要供关卡生成与测试使用。 */
-    bool ConfigureLoadout(const TArray<UShooterWeaponDefinition*>& Definitions);
+    bool ConfigureLoadout(const TArray<UShooterWeaponDefinition*>& Definitions,int32 OwnedCount=0);
+    UFUNCTION(BlueprintPure, Category="Shooter|Inventory") bool OwnsWeapon(const UShooterWeaponDefinition* Definition) const;
+    UFUNCTION(BlueprintPure, Category="Shooter|Inventory") int32 GetReserveForWeapon(const UShooterWeaponDefinition* Definition) const;
+    UFUNCTION(BlueprintPure, Category="Shooter|Inventory") int32 GetMagazineForWeapon(const UShooterWeaponDefinition* Definition) const;
+    UFUNCTION(BlueprintPure, Category="Shooter|Inventory") bool NeedsAmmoRefill(const UShooterWeaponDefinition* Definition) const;
+    /** 同时补满对应武器弹匣与备用；当前武器先取消旧射击/换弹，再原子写入和广播。 */
+    UFUNCTION(BlueprintCallable, Category="Shooter|Inventory") bool TryRefillWeaponAmmo(const UShooterWeaponDefinition* Definition);
+    UFUNCTION(BlueprintCallable, Category="Shooter|Inventory") bool TryGrantWeapon(UShooterWeaponDefinition* Definition);
+    /** 返回实际增加量；满量、未拥有、非法数量或状态不允许时为 0。 */
+    UFUNCTION(BlueprintCallable, Category="Shooter|Inventory") int32 TryAddReserveAmmo(const UShooterWeaponDefinition* Definition,int32 Amount);
+    UPROPERTY(BlueprintAssignable, Category="Shooter|Inventory") FShooterInventoryChanged OnInventoryChanged;
 
     /** 请求激活射击能力；重复调用不会叠加连射循环。返回值表示请求被接受。 */
     UFUNCTION(BlueprintCallable, Category = "Shooter|Weapon")
@@ -112,6 +123,9 @@ protected:
     /** 有效配置数组优先于下面的旧单武器参数；旧参数保留用于旧蓝图对比和兼容。 */
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|Loadout")
     TArray<TObjectPtr<UShooterWeaponDefinition>> WeaponDefinitions;
+    // 0 保留旧双武器演示；实际 Shooter 配置 1，只有首槽步枪在出生时拥有。
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|Loadout",meta=(ClampMin="0"))
+    int32 InitialWeaponCount=0;
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
@@ -159,6 +173,7 @@ private:
     // 当前槽的数值缓存仍供旧蓝图 Getter 使用；换槽时写回各自状态，资源本身不变。
     struct FWeaponRuntimeState
     {
+        bool bOwned = true;
         int32 Ammo = 0;
         int32 Reserve = 0;
         double NextShotTime = 0;

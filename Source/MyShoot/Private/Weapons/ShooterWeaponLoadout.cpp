@@ -7,10 +7,11 @@
 #include "Sound/SoundBase.h"
 
 
-bool UShooterWeaponComponent::ConfigureLoadout(const TArray<UShooterWeaponDefinition*>& Definitions)
+bool UShooterWeaponComponent::ConfigureLoadout(const TArray<UShooterWeaponDefinition*>& Definitions,int32 OwnedCount)
 {
     if (HasBegunPlay() || Definitions.IsEmpty()) { return false; }
     for (const auto* Definition : Definitions) { if (!IsValid(Definition)) { return false; } }
+    InitialWeaponCount=FMath::Max(0,OwnedCount);
     WeaponDefinitions.Reset();
     for (auto* Definition : Definitions) { WeaponDefinitions.Add(Definition); }
     return true;
@@ -37,8 +38,9 @@ void UShooterWeaponComponent::InitializeLoadout()
     RuntimeSlots.SetNum(WeaponDefinitions.Num());
     for (int32 Index=0; Index<RuntimeSlots.Num(); ++Index)
     {
+        RuntimeSlots[Index].bOwned=InitialWeaponCount<=0||Index<InitialWeaponCount;
         RuntimeSlots[Index].Ammo = FMath::Max(1, WeaponDefinitions[Index]->MagazineCapacity);
-        RuntimeSlots[Index].Reserve = FMath::Max(0, WeaponDefinitions[Index]->InitialReserveAmmo);
+        RuntimeSlots[Index].Reserve = FMath::Clamp(WeaponDefinitions[Index]->InitialReserveAmmo,0,FMath::Max(0,WeaponDefinitions[Index]->MaxReserveAmmo));
     }
     EquippedSlot = 0;
     ApplyDefinition(GetWeaponDefinition());
@@ -51,7 +53,7 @@ void UShooterWeaponComponent::ApplyDefinition(const UShooterWeaponDefinition* De
     FireInterval = Safe(Definition->FireInterval, .01f, .1f);
     Range = Safe(Definition->Range, 1.f, 10000.f);
     MagazineCapacity = FMath::Max(1, Definition->MagazineCapacity);
-    InitialReserveAmmo = FMath::Max(0, Definition->InitialReserveAmmo);
+    InitialReserveAmmo = FMath::Clamp(Definition->InitialReserveAmmo,0,FMath::Max(0,Definition->MaxReserveAmmo));
     ReloadDuration = Safe(Definition->ReloadDuration, .01f, 1.5f);
     PelletCount = FMath::Clamp(Definition->PelletCount, 1, 32);
     SpreadHalfAngle = FMath::Clamp(Safe(Definition->SpreadHalfAngle, 0.f, 0.f), 0.f, 30.f);
@@ -69,7 +71,7 @@ void UShooterWeaponComponent::SaveCurrentSlot()
 }
 bool UShooterWeaponComponent::EquipWeapon(int32 Slot)
 {
-    if (!CanUseWeapon() || bResolvingShot || !RuntimeSlots.IsValidIndex(Slot) || Slot == EquippedSlot) { return false; }
+    if (!CanUseWeapon() || bResolvingShot || !RuntimeSlots.IsValidIndex(Slot) || !RuntimeSlots[Slot].bOwned || Slot == EquippedSlot) { return false; }
     TGuardValue<bool> Guard(bSwitchingWeapon, true);
     // 取消回调只能观察旧武器；切换完成前不允许回调内再次开火、换弹或切枪。
     StopFiring();

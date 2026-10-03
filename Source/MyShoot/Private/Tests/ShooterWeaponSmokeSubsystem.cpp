@@ -33,10 +33,11 @@ void UShooterWeaponSmokeSubsystem::Initialize(FSubsystemCollectionBase& Collecti
 {
     Super::Initialize(Collection);
 #if !UE_BUILD_SHIPPING
-    if(FParse::Param(FCommandLine::Get(),TEXT("ShooterWeaponSmoke")))
+    if(FParse::Param(FCommandLine::Get(),TEXT("ShooterWeaponSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("ShooterPickupSmoke")))
     {
+        bPickup=FParse::Param(FCommandLine::Get(),TEXT("ShooterPickupSmoke"));
         bPolish=FParse::Param(FCommandLine::Get(),TEXT("ShooterShotgunPolishSmoke"));
-        Output=FPaths::ProjectSavedDir()/(bPolish?TEXT("T14_Revision/AfterIK"):TEXT("T14/MapSmoke")); IFileManager::Get().MakeDirectory(*Output,true);
+        Output=FPaths::ProjectSavedDir()/(bPickup?TEXT("T15_PickupRing/MapSmoke"):(bPolish?TEXT("T14_Revision/AfterIK"):TEXT("T14/MapSmoke"))); IFileManager::Get().MakeDirectory(*Output,true);
         Deadline=FPlatformTime::Seconds()+180;
         TickHandle=FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this,&UShooterWeaponSmokeSubsystem::Step),.01f);
     }
@@ -59,6 +60,7 @@ void UShooterWeaponSmokeSubsystem::Next(int32 NewPhase,float Delay) { Phase=NewP
 void UShooterWeaponSmokeSubsystem::Capture(const TCHAR* Name) { FScreenshotRequest::RequestScreenshot(Output/Name,true,false); }
 bool UShooterWeaponSmokeSubsystem::Step(float DeltaTime)
 {
+    if(bPickup) { return StepPickup(DeltaTime); }
     if(bFinished) { return false; }
     const double Now=FPlatformTime::Seconds();
     if(Now>Deadline) { Finish(false,FString::Printf(TEXT("Timeout phase %d"),Phase)); return false; }
@@ -90,8 +92,14 @@ bool UShooterWeaponSmokeSubsystem::Step(float DeltaTime)
     switch(Phase)
     {
     case 0:
-        if(!Check(W->GetWeaponCount()==2&&W->GetEquippedSlot()==0,TEXT("Saved player loads two data assets and starts on rifle"))
+        if(!Check(W->GetWeaponCount()>=1&&W->GetEquippedSlot()==0,TEXT("Saved player starts on rifle"))
             ||!Check(!W->EquipWeapon(1),TEXT("Menu blocks switching"))||!Check(GM->StartRound(),TEXT("Start round"))) { return false; }
+        // T15 后默认只有步枪；旧武器专项显式授予霰弹枪，拾取路径由独立专项覆盖。
+        if(W->GetWeaponCount()==1)
+        {
+            auto* Shotgun=LoadObject<UShooterWeaponDefinition>(nullptr,TEXT("/Game/Weapons/Data/DA_Shotgun.DA_Shotgun"));
+            if(!Check(W->TryGrantWeapon(Shotgun),TEXT("Weapon-only smoke grants shotgun explicitly"))) { return false; }
+        }
         for(TActorIterator<AShooterAIController> It(World);It;++It)
         { It->SuspendCombat(); World->GetTimerManager().ClearAllTimersForObject(*It); if(auto* P=Cast<ACharacter>(It->GetPawn())) { P->GetCharacterMovement()->DisableMovement(); } }
         Player->GetCharacterMovement()->DisableMovement(); PC->SetControlRotation(FRotator(0,0,0)); Next(1,12.f); break;

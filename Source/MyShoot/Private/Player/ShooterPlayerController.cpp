@@ -1,5 +1,6 @@
 #include "Player/ShooterPlayerController.h"
 #include "UI/ShooterHealthWidget.h"
+#include "UI/ShooterPickupWidget.h"
 #include "UI/ShooterAmmoWidget.h"
 #include "UI/ShooterMenuWidget.h"
 #include "UI/ShooterAimReticleWidget.h"
@@ -44,6 +45,11 @@ void AShooterPlayerController::OnPossess(APawn* InPawn)
 void AShooterPlayerController::RefreshHUD()
 {
     if (!IsLocalController() || !GetLocalPlayer()) { return; }
+    if(!PickupWidget)
+    {
+        PickupWidget=CreateWidget<UShooterPickupWidget>(this,UShooterPickupWidget::StaticClass());
+        if(PickupWidget) { PickupWidget->SetVisibility(ESlateVisibility::HitTestInvisible); PickupWidget->AddToPlayerScreen(13); }
+    }
     if (!HealthWidget && HealthWidgetClass)
     {
         HealthWidget = CreateWidget<UShooterHealthWidget>(this, HealthWidgetClass);
@@ -97,6 +103,7 @@ void AShooterPlayerController::HandleRoundChanged(EShooterRoundState State)
     }
     FlushPressedKeys();
     bShowMouseCursor = !bPlaying;
+    if(PickupWidget) { PickupWidget->SetVisibility(bPlaying?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed); }
     if (HealthWidget) { HealthWidget->SetVisibility(bPlaying ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed); }
     if (AmmoWidget) { AmmoWidget->SetVisibility(bPlaying ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed); }
     RefreshCrosshair();
@@ -162,6 +169,7 @@ void AShooterPlayerController::EndPlay(const EEndPlayReason::Type Reason)
     if (HealthWidget) { HealthWidget->ObserveCharacter(nullptr); HealthWidget->RemoveFromParent(); HealthWidget = nullptr; }
     if (AmmoWidget) { AmmoWidget->ObserveWeapon(nullptr); AmmoWidget->RemoveFromParent(); AmmoWidget = nullptr; }
     if (MenuWidget) { MenuWidget->RemoveFromParent(); MenuWidget = nullptr; }
+    if(PickupWidget) { PickupWidget->RemoveFromParent(); PickupWidget=nullptr; }
     if (ObservedAim.IsValid())
     {
         ObservedAim->OnAimingChanged.RemoveDynamic(this, &AShooterPlayerController::HandleAimingChanged);

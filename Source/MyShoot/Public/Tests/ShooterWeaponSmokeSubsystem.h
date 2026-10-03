@@ -13,6 +13,8 @@ public:
     virtual void Deinitialize() override;
 private:
     bool Step(float DeltaTime);
+    bool StepPickup(float DeltaTime);
+    bool bPickup=false;
     bool Check(bool bOK,const TCHAR* Message);
     void Finish(bool bOK,const FString& Message);
     void Next(int32 NewPhase,float Delay=.4f);

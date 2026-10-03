@@ -13,6 +13,7 @@ void UShooterAmmoWidget::ObserveWeapon(UShooterWeaponComponent* Weapon)
 {
     if (UShooterWeaponComponent* Old = ObservedWeapon.Get())
     {
+        Old->OnInventoryChanged.RemoveDynamic(this,&UShooterAmmoWidget::RefreshAmmo);
         Old->OnWeaponChanged.RemoveDynamic(this, &UShooterAmmoWidget::OnWeaponChanged);
         Old->OnAmmoChanged.RemoveDynamic(this, &UShooterAmmoWidget::OnAmmoChanged);
         Old->OnReserveAmmoChanged.RemoveDynamic(this, &UShooterAmmoWidget::OnAmmoChanged);
@@ -22,6 +23,7 @@ void UShooterAmmoWidget::ObserveWeapon(UShooterWeaponComponent* Weapon)
     ObservedWeapon = Weapon;
     if (Weapon)
     {
+        Weapon->OnInventoryChanged.AddUniqueDynamic(this,&UShooterAmmoWidget::RefreshAmmo);
         Weapon->OnWeaponChanged.AddUniqueDynamic(this, &UShooterAmmoWidget::OnWeaponChanged);
         Weapon->OnAmmoChanged.AddUniqueDynamic(this, &UShooterAmmoWidget::OnAmmoChanged);
         Weapon->OnReserveAmmoChanged.AddUniqueDynamic(this, &UShooterAmmoWidget::OnAmmoChanged);
@@ -40,7 +42,7 @@ void UShooterAmmoWidget::RefreshAmmo()
     if (AmmoStatus)
     {
         const TCHAR* Status = bDisplayedReloading ? TEXT("RELOADING...") :
-            DisplayedAmmo == 0 ? (DisplayedReserve > 0 ? TEXT("R  RELOAD") : TEXT("NO AMMO")) : TEXT("1/2 SWITCH | R RELOAD");
+            DisplayedAmmo == 0 ? (DisplayedReserve > 0 ? TEXT("R  RELOAD") : TEXT("NO AMMO")) : (Weapon&&Weapon->GetWeaponCount()>1?TEXT("1/2 SWITCH | R RELOAD"):TEXT("F PICKUP | R RELOAD"));
         AmmoStatus->SetText(FText::FromString(FString::Printf(TEXT("%s | %s"), Weapon ? *Weapon->GetWeaponDisplayName().ToString() : TEXT(""), Status)));
         AmmoStatus->SetColorAndOpacity(FSlateColor(DisplayedAmmo == 0 ? FLinearColor(1,0.2f,0.08f) : FLinearColor(0.5f,0.8f,0.9f)));
     }

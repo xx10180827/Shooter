@@ -3,6 +3,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Game/ShooterGameMode.h"
 #include "ShooterPlayerController.generated.h"
+class UShooterPickupWidget;
 class UShooterHealthWidget;
 class UShooterAmmoWidget;
 class UShooterMenuWidget;
@@ -37,6 +38,7 @@ private:
     UFUNCTION() void HandleAimingChanged(bool bIsAiming);
     void ToggleGameMenu();
     UFUNCTION() void HandleRoundChanged(EShooterRoundState State);
+    UPROPERTY(Transient) TObjectPtr<UShooterPickupWidget> PickupWidget;
     UPROPERTY(Transient) TObjectPtr<UShooterHealthWidget> HealthWidget;
     UPROPERTY(Transient) TObjectPtr<UShooterAmmoWidget> AmmoWidget;
     UPROPERTY(Transient) TObjectPtr<UShooterMenuWidget> MenuWidget;

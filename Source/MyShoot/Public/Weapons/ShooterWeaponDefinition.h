@@ -48,6 +48,9 @@ public:
     int32 MagazineCapacity = 30;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ammo", meta=(ClampMin="0"))
     int32 InitialReserveAmmo = 90;
+    /** 对应武器的备用弹药上限；拾取不改变弹匣数量。 */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ammo", meta=(ClampMin="0"))
+    int32 MaxReserveAmmo = 90;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Ammo", meta=(ClampMin="0.01"))
     float ReloadDuration = 1.5f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Presentation")

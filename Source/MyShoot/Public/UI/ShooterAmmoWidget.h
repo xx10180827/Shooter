@@ -23,7 +23,7 @@ protected:
     UPROPERTY(meta=(BindWidget))
     TObjectPtr<UTextBlock> AmmoStatus;
 private:
-    void RefreshAmmo();
+    UFUNCTION() void RefreshAmmo();
     UFUNCTION()
     void OnWeaponChanged(int32 OldSlot, int32 NewSlot);
     UFUNCTION()
