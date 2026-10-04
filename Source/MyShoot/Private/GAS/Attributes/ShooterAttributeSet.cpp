@@ -3,14 +3,18 @@
 #include "GAS/ShooterGameplayTags.h"
 
 UShooterAttributeSet::UShooterAttributeSet()
-    : Health(100.0f), MaxHealth(100.0f)
+    : Stamina(100.f), MaxStamina(100.f), Health(100.0f), MaxHealth(100.0f)
 {
 }
 
 // 所有属性入口共用相同约束，防止效果和直接写入出现不同边界行为。
 void UShooterAttributeSet::ClampAttribute(const FGameplayAttribute& Attribute, float& NewValue) const
 {
-    if (Attribute == GetMaxHealthAttribute())
+    if(Attribute==GetMaxStaminaAttribute())
+    { NewValue=FMath::IsFinite(NewValue)?FMath::Max(1.f,NewValue):100.f; }
+    else if(Attribute==GetStaminaAttribute())
+    { NewValue=FMath::IsFinite(NewValue)?FMath::Clamp(NewValue,0.f,GetMaxStamina()):0.f; }
+    else if (Attribute == GetMaxHealthAttribute())
     {
         NewValue = FMath::IsFinite(NewValue) ? FMath::Max(1.0f, NewValue) : 100.0f;
     }
@@ -42,6 +46,8 @@ void UShooterAttributeSet::PreAttributeBaseChange(const FGameplayAttribute& Attr
 void UShooterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
 {
     Super::PostGameplayEffectExecute(Data);
+    if(Data.EvaluatedData.Attribute==GetStaminaAttribute()||Data.EvaluatedData.Attribute==GetMaxStaminaAttribute())
+    { SetStamina(FMath::Clamp(GetStamina(),0.f,GetMaxStamina())); }
 
     if (Data.EvaluatedData.Attribute == GetHealthAttribute()
         || Data.EvaluatedData.Attribute == GetMaxHealthAttribute())

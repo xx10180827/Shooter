@@ -1,6 +1,7 @@
 #include "Player/ShooterPlayerController.h"
 #include "UI/ShooterHealthWidget.h"
 #include "UI/ShooterPickupWidget.h"
+#include "UI/ShooterDashWidget.h"
 #include "UI/ShooterAmmoWidget.h"
 #include "UI/ShooterMenuWidget.h"
 #include "UI/ShooterAimReticleWidget.h"
@@ -45,6 +46,11 @@ void AShooterPlayerController::OnPossess(APawn* InPawn)
 void AShooterPlayerController::RefreshHUD()
 {
     if (!IsLocalController() || !GetLocalPlayer()) { return; }
+    if(!DashWidget)
+    {
+        DashWidget=CreateWidget<UShooterDashWidget>(this,UShooterDashWidget::StaticClass());
+        if(DashWidget) { DashWidget->SetVisibility(ESlateVisibility::HitTestInvisible); DashWidget->AddToPlayerScreen(14); }
+    }
     if(!PickupWidget)
     {
         PickupWidget=CreateWidget<UShooterPickupWidget>(this,UShooterPickupWidget::StaticClass());
@@ -103,6 +109,7 @@ void AShooterPlayerController::HandleRoundChanged(EShooterRoundState State)
     }
     FlushPressedKeys();
     bShowMouseCursor = !bPlaying;
+    if(DashWidget) { DashWidget->SetVisibility(bPlaying?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed); }
     if(PickupWidget) { PickupWidget->SetVisibility(bPlaying?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed); }
     if (HealthWidget) { HealthWidget->SetVisibility(bPlaying ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed); }
     if (AmmoWidget) { AmmoWidget->SetVisibility(bPlaying ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed); }
@@ -170,6 +177,7 @@ void AShooterPlayerController::EndPlay(const EEndPlayReason::Type Reason)
     if (AmmoWidget) { AmmoWidget->ObserveWeapon(nullptr); AmmoWidget->RemoveFromParent(); AmmoWidget = nullptr; }
     if (MenuWidget) { MenuWidget->RemoveFromParent(); MenuWidget = nullptr; }
     if(PickupWidget) { PickupWidget->RemoveFromParent(); PickupWidget=nullptr; }
+    if(DashWidget) { DashWidget->RemoveFromParent(); DashWidget=nullptr; }
     if (ObservedAim.IsValid())
     {
         ObservedAim->OnAimingChanged.RemoveDynamic(this, &AShooterPlayerController::HandleAimingChanged);

@@ -13,6 +13,9 @@ public:
     virtual void Deinitialize() override;
 private:
     bool Step(float DeltaTime);
+    bool StepDash(float DeltaTime);
+    bool bDash=false;
+    FVector DashStart=FVector::ZeroVector;
     bool StepPickup(float DeltaTime);
     bool bPickup=false;
     bool Check(bool bOK,const TCHAR* Message);

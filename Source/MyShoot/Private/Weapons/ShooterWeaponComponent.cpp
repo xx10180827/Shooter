@@ -114,7 +114,7 @@ bool UShooterWeaponComponent::CanUseWeapon() const
         && IsValid(Character) && !Character->IsActorBeingDestroyed()
         && Character->HasAuthority() && Character->IsGASInitialized()
         && !Character->HasGASDeathStarted() && Character->GetGASHealth() > 0.0f
-        && ASC && !ASC->HasMatchingGameplayTag(ShooterGameplayTags::State_Dead);
+        && ASC && !ASC->HasMatchingGameplayTag(ShooterGameplayTags::State_Dead) && !ASC->HasMatchingGameplayTag(ShooterGameplayTags::State_Dashing);
 }
 
 bool UShooterWeaponComponent::CanFire() const

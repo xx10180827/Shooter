@@ -12,6 +12,9 @@
 #include "Combat/ShooterDamageLibrary.h"
 #include "GAS/ShooterGameplayTags.h"
 #include "Weapons/ShooterWeaponComponent.h"
+#include "GAS/Abilities/ShooterFireAbility.h"
+#include "GAS/Abilities/ShooterReloadAbility.h"
+#include "GAS/Abilities/ShooterDashAbility.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FShooterGASReloadTest, "MyShoot.GAS.Reload",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -150,7 +153,9 @@ bool FShooterGASReloadTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Reload before component removal"), RemovedWeapon->StartReloading());
     RemovedWeapon->DestroyComponent();
     Advance(1.6f);
-    TestEqual(TEXT("Both weapon abilities revoked"), Removed->GetAbilitySystemComponent()->GetActivatableAbilities().Num(), 0);
+    TestNull(TEXT("Removed weapon revokes fire"),Removed->GetAbilitySystemComponent()->FindAbilitySpecFromClass(UShooterFireAbility::StaticClass()));
+    TestNull(TEXT("Removed weapon revokes reload"),Removed->GetAbilitySystemComponent()->FindAbilitySpecFromClass(UShooterReloadAbility::StaticClass()));
+    TestNotNull(TEXT("Independent dash ability survives weapon removal"),Removed->GetAbilitySystemComponent()->FindAbilitySpecFromClass(UShooterDashAbility::StaticClass()));
     TestFalse(TEXT("Removal leaves no owned reload tag"),
         Removed->GetAbilitySystemComponent()->HasMatchingGameplayTag(ShooterGameplayTags::State_Reloading));
     return true;

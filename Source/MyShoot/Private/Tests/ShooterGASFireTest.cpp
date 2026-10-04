@@ -14,6 +14,9 @@
 #include "Combat/ShooterDamageLibrary.h"
 #include "GAS/ShooterGameplayTags.h"
 #include "Weapons/ShooterWeaponComponent.h"
+#include "GAS/Abilities/ShooterFireAbility.h"
+#include "GAS/Abilities/ShooterReloadAbility.h"
+#include "GAS/Abilities/ShooterDashAbility.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FShooterGASFireTest, "MyShoot.GAS.Fire",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -132,8 +135,10 @@ bool FShooterGASFireTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Fresh weapon activates"), Fresh->GetShooterWeapon()->StartFiring());
     Fresh->GetShooterWeapon()->DestroyComponent();
     Advance(0.2f);
-    TestEqual(TEXT("Removed component revokes its granted ability"),
-        Fresh->GetAbilitySystemComponent()->GetActivatableAbilities().Num(), 0);
+    // 武器只撤销自身能力；闪避由另一组件授予，应继续保留。
+    TestNull(TEXT("Removed weapon revokes fire"),Fresh->GetAbilitySystemComponent()->FindAbilitySpecFromClass(UShooterFireAbility::StaticClass()));
+    TestNull(TEXT("Removed weapon revokes reload"),Fresh->GetAbilitySystemComponent()->FindAbilitySpecFromClass(UShooterReloadAbility::StaticClass()));
+    TestNotNull(TEXT("Independent dash ability survives weapon removal"),Fresh->GetAbilitySystemComponent()->FindAbilitySpecFromClass(UShooterDashAbility::StaticClass()));
     return true;
 }
 #endif

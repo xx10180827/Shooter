@@ -40,7 +40,7 @@ bool UShooterAimComponent::CanAim() const
     const AMyShooter* Owner = OwnerCharacter.Get();
     return bViewCached && Camera.IsValid() && IsValid(Owner) && !Owner->IsActorBeingDestroyed()
         && Owner->IsGASInitialized() && !Owner->HasGASDeathStarted() && Owner->GetGASHealth() > 0
-        && Weapon.IsValid() && !Weapon->IsReloading() && AShooterGameMode::IsCombatAllowed(this);
+        && !Owner->GetAbilitySystemComponent()->HasMatchingGameplayTag(ShooterGameplayTags::State_Dashing) && Weapon.IsValid() && !Weapon->IsReloading() && AShooterGameMode::IsCombatAllowed(this);
 }
 void UShooterAimComponent::ToggleAiming()
 {
@@ -74,10 +74,10 @@ void UShooterAimComponent::SetAiming(bool bNewAiming)
 void UShooterAimComponent::ApplyView()
 {
     if (!bViewCached) { return; }
-    if (Camera.IsValid()) { Camera->SetFieldOfView(FMath::Lerp(HipFieldOfView, AimFieldOfView, AimAlpha)); }
+    if (Camera.IsValid()) { Camera->SetFieldOfView(FMath::Lerp(HipFieldOfView, AimFieldOfView, AimAlpha)+7.f*DashAlpha); }
     if (AMyShooter* Owner = OwnerCharacter.Get())
     {
-        Owner->GetMesh()->SetRelativeLocation(HipMeshLocation + AimMeshOffset * AimAlpha);
+        Owner->GetMesh()->SetRelativeLocation(HipMeshLocation + AimMeshOffset * AimAlpha + FVector(-8.f,0,-12.f)*DashAlpha);
         if (UShooterPlayerAnimInstance* Anim = Cast<UShooterPlayerAnimInstance>(Owner->GetMesh()->GetAnimInstance()))
         {
             // 暂停前也同步到动画实例，恢复帧不会沿用开镜权重。
@@ -89,13 +89,20 @@ void UShooterAimComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 {
     Super::TickComponent(DeltaTime, TickType, TickFunction);
     if (bAiming && !CanAim()) { ResetAiming(); return; }
+    DashAlpha=FMath::FInterpConstantTo(DashAlpha,bDashPresentation?1.f:0.f,DeltaTime,10.f);
     AimAlpha = FMath::FInterpConstantTo(AimAlpha, bAiming ? 1.f : 0.f, DeltaTime, 1.f / AimTransitionDuration);
     ApplyView();
-    if (!bAiming && AimAlpha <= 0.f) { SetComponentTickEnabled(false); }
+    if (!bAiming && AimAlpha <= 0.f && !bDashPresentation && DashAlpha<=0.f) { SetComponentTickEnabled(false); }
+}
+void UShooterAimComponent::SetDashPresentation(bool bActive,bool bImmediate)
+{
+    bDashPresentation=bActive;
+    if(bImmediate) { DashAlpha=bActive?1.f:0.f; ApplyView(); }
+    SetComponentTickEnabled(bActive||DashAlpha>0.f||bAiming||AimAlpha>0.f);
 }
 void UShooterAimComponent::ResetAiming()
 {
-    SetAiming(false); AimAlpha = 0.f; ApplyView(); SetComponentTickEnabled(false);
+    SetAiming(false); AimAlpha = 0.f; bDashPresentation=false; DashAlpha=0.f; ApplyView(); SetComponentTickEnabled(false);
 }
 UAnimMontage* UShooterAimComponent::GetFireMontage() const
 {

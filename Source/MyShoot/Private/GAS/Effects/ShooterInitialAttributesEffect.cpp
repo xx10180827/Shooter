@@ -29,4 +29,8 @@ UShooterInitialAttributesEffect::UShooterInitialAttributesEffect()
     HealthModifier.ModifierOp = EGameplayModOp::Override;
     HealthModifier.ModifierMagnitude = FGameplayEffectModifierMagnitude(InitialHealth);
     Modifiers.Add(HealthModifier);
+    FGameplayModifierInfo MaxStamina;
+    MaxStamina.Attribute=UShooterAttributeSet::GetMaxStaminaAttribute(); MaxStamina.ModifierOp=EGameplayModOp::Override;
+    MaxStamina.ModifierMagnitude=FScalableFloat(100.f); Modifiers.Add(MaxStamina);
+    FGameplayModifierInfo Stamina=MaxStamina; Stamina.Attribute=UShooterAttributeSet::GetStaminaAttribute(); Modifiers.Add(Stamina);
 }

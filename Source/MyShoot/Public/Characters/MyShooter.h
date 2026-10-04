@@ -9,6 +9,7 @@ class UShooterAimComponent;
 class UShooterWeaponPresentationComponent;
 class UShooterRecoilComponent;
 class UShooterInteractionComponent;
+class UShooterDashComponent;
 
 /** 玩家角色：继承公共 GAS 与死亡流程；蓝图配置模型、AnimBP 和输入，武器组件集中管理射击。 */
 UCLASS()
@@ -35,6 +36,8 @@ protected:
     /** 附近物品与准星检测独立于武器逻辑。 */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Shooter|Interaction")
     TObjectPtr<UShooterInteractionComponent> ShooterInteraction;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Shooter|Dash") TObjectPtr<UShooterDashComponent> ShooterDash;
+    void DashInput();
     void InteractInput();
     void ToggleAimInput();
     void EquipPrimaryInput();

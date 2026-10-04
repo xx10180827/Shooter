@@ -33,11 +33,12 @@ void UShooterWeaponSmokeSubsystem::Initialize(FSubsystemCollectionBase& Collecti
 {
     Super::Initialize(Collection);
 #if !UE_BUILD_SHIPPING
-    if(FParse::Param(FCommandLine::Get(),TEXT("ShooterWeaponSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("ShooterPickupSmoke")))
+    if(FParse::Param(FCommandLine::Get(),TEXT("ShooterDashSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("ShooterWeaponSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("ShooterPickupSmoke")))
     {
+        bDash=FParse::Param(FCommandLine::Get(),TEXT("ShooterDashSmoke"));
         bPickup=FParse::Param(FCommandLine::Get(),TEXT("ShooterPickupSmoke"));
         bPolish=FParse::Param(FCommandLine::Get(),TEXT("ShooterShotgunPolishSmoke"));
-        Output=FPaths::ProjectSavedDir()/(bPickup?TEXT("T15_PickupRing/MapSmoke"):(bPolish?TEXT("T14_Revision/AfterIK"):TEXT("T14/MapSmoke"))); IFileManager::Get().MakeDirectory(*Output,true);
+        Output=FPaths::ProjectSavedDir()/(bDash?TEXT("T16_EnergyUI/MapSmoke"):bPickup?TEXT("T15_PickupRing/MapSmoke"):(bPolish?TEXT("T14_Revision/AfterIK"):TEXT("T14/MapSmoke"))); IFileManager::Get().MakeDirectory(*Output,true);
         Deadline=FPlatformTime::Seconds()+180;
         TickHandle=FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this,&UShooterWeaponSmokeSubsystem::Step),.01f);
     }
@@ -60,6 +61,7 @@ void UShooterWeaponSmokeSubsystem::Next(int32 NewPhase,float Delay) { Phase=NewP
 void UShooterWeaponSmokeSubsystem::Capture(const TCHAR* Name) { FScreenshotRequest::RequestScreenshot(Output/Name,true,false); }
 bool UShooterWeaponSmokeSubsystem::Step(float DeltaTime)
 {
+    if(bDash) { return StepDash(DeltaTime); }
     if(bPickup) { return StepPickup(DeltaTime); }
     if(bFinished) { return false; }
     const double Now=FPlatformTime::Seconds();

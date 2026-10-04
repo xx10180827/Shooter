@@ -37,6 +37,8 @@ public:
     UFUNCTION(BlueprintPure, Category="Shooter|Aim")
     UAnimMontage* GetFireMontage() const;
     bool CanAim() const;
+    // 同一位置统一合成开镜与闪避镜头/手臂偏移，防止两个组件相互覆盖。
+    void SetDashPresentation(bool bActive,bool bImmediate=false);
 protected:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
@@ -69,6 +71,8 @@ private:
     FVector HipMeshLocation = FVector::ZeroVector;
     float HipFieldOfView = 90.f;
     float AimAlpha = 0.f;
+    float DashAlpha = 0.f;
+    bool bDashPresentation = false;
     bool bAiming = false;
     bool bViewCached = false;
 };

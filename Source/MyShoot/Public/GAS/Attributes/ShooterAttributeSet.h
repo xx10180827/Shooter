@@ -13,6 +13,15 @@ class MYSHOOT_API UShooterAttributeSet : public UAttributeSet
 
 public:
     UShooterAttributeSet();
+    // 体力与生命共用 ASC 数值系统，消耗和恢复通过 GE 提交。
+    GAMEPLAYATTRIBUTE_PROPERTY_GETTER(UShooterAttributeSet, Stamina)
+    GAMEPLAYATTRIBUTE_VALUE_GETTER(Stamina)
+    GAMEPLAYATTRIBUTE_VALUE_SETTER(Stamina)
+    GAMEPLAYATTRIBUTE_VALUE_INITTER(Stamina)
+    GAMEPLAYATTRIBUTE_PROPERTY_GETTER(UShooterAttributeSet, MaxStamina)
+    GAMEPLAYATTRIBUTE_VALUE_GETTER(MaxStamina)
+    GAMEPLAYATTRIBUTE_VALUE_SETTER(MaxStamina)
+    GAMEPLAYATTRIBUTE_VALUE_INITTER(MaxStamina)
 
     // GAS 标准宏生成属性描述、读值、写值和初始化接口；血量仍由此属性集统一持有。
     GAMEPLAYATTRIBUTE_PROPERTY_GETTER(UShooterAttributeSet, Health)
@@ -31,6 +40,8 @@ public:
     virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
 
 protected:
+    UPROPERTY(BlueprintReadOnly, Category="Shooter|GAS") FGameplayAttributeData Stamina;
+    UPROPERTY(BlueprintReadOnly, Category="Shooter|GAS") FGameplayAttributeData MaxStamina;
     UPROPERTY(BlueprintReadOnly, Category = "Shooter|GAS")
     FGameplayAttributeData Health;
 
