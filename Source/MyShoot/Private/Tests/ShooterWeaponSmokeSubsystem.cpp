@@ -38,7 +38,7 @@ void UShooterWeaponSmokeSubsystem::Initialize(FSubsystemCollectionBase& Collecti
         bDash=FParse::Param(FCommandLine::Get(),TEXT("ShooterDashSmoke"));
         bPickup=FParse::Param(FCommandLine::Get(),TEXT("ShooterPickupSmoke"));
         bPolish=FParse::Param(FCommandLine::Get(),TEXT("ShooterShotgunPolishSmoke"));
-        Output=FPaths::ProjectSavedDir()/(bDash?TEXT("T16_EnergyUI/MapSmoke"):bPickup?TEXT("T15_PickupRing/MapSmoke"):(bPolish?TEXT("T14_Revision/AfterIK"):TEXT("T14/MapSmoke"))); IFileManager::Get().MakeDirectory(*Output,true);
+        Output=FPaths::ProjectSavedDir()/(bDash?TEXT("T17_AirDash/MapSmoke"):bPickup?TEXT("T15_PickupRing/MapSmoke"):(bPolish?TEXT("T14_Revision/AfterIK"):TEXT("T14/MapSmoke"))); IFileManager::Get().MakeDirectory(*Output,true);
         Deadline=FPlatformTime::Seconds()+180;
         TickHandle=FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this,&UShooterWeaponSmokeSubsystem::Step),.01f);
     }

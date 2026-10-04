@@ -11,6 +11,7 @@
 #include "EngineUtils.h"
 #include "TimerManager.h"
 #include "HAL/PlatformTime.h"
+#include "Combat/ShooterDamageLibrary.h"
 #if WITH_EDITOR
 #include "ShaderCompiler.h"
 #endif
@@ -71,7 +72,29 @@ bool UShooterWeaponSmokeSubsystem::StepDash(float)
         if(!Check(FVector::Dist2D(DashStart,Player->GetActorLocation())<1.f,TEXT("Resume has no old root motion"))) { return false; }
         Capture(TEXT("04-ResumedHUD.png")); Next(9,.5f); break;
     case 9:
-        Finish(true,TEXT("Actual Shift dash, stamina arc, cooldown icon, camera, pause cleanup verified")); return false;
+        Next(11,1.3f); break;
+    case 11:
+        // 在当前蓝图实例真实跳起，再通过 Shift 输入启动空中闪避。
+        Player->Jump(); Next(12,.12f); break;
+    case 12:
+        Player->StopJumping();
+        if(!Check(Player->GetCharacterMovement()->IsFalling(),TEXT("Real player jumped before air dash"))) { return false; }
+        DashStart=Player->GetActorLocation(); Press(EKeys::LeftShift); Next(13,.09f); break;
+    case 13:
+        if(!Check(Dash->IsDashing()&&FMath::Abs(Player->GetActorLocation().Z-DashStart.Z)<.1f,TEXT("Actual air Shift holds altitude"))
+            ||!Check(!UShooterDamageLibrary::ApplyGASDamage(GM,Player,25,GM,FHitResult()),TEXT("Actual air dash blocks damage"))) { return false; }
+        Capture(TEXT("05-AirDash.png")); Next(14,.3f); break;
+    case 14:
+    {
+        const float Travel=FVector::Dist2D(DashStart,Player->GetActorLocation());
+        UE_LOG(LogTemp,Display,TEXT("Actual air dash travel %.2f cm; height delta %.2f"),Travel,Player->GetActorLocation().Z-DashStart.Z);
+        if(!Check(!Dash->IsDashing()&&FMath::Abs(Travel-Dash->DashDistance)<20.f,TEXT("Actual air distance matches ground"))
+            ||!Check(Player->GetActorLocation().Z<DashStart.Z,TEXT("Actual air dash falls after completion"))
+            ||!Check(UShooterDamageLibrary::ApplyGASDamage(GM,Player,10,GM,FHitResult()),TEXT("Actual damage resumes after dash"))) { return false; }
+        Capture(TEXT("06-AirDashEnded.png")); Next(15,.5f); break;
+    }
+    case 15:
+        Finish(true,TEXT("Ground and air Shift, held height, invulnerability window, stamina HUD and pause cleanup verified")); return false;
     }
     return true;
 }

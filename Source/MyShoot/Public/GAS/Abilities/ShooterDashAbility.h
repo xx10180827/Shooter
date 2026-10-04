@@ -14,6 +14,9 @@ public:
     virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle,const FGameplayAbilityActorInfo* ActorInfo,const FGameplayAbilityActivationInfo ActivationInfo,const FGameplayEventData* TriggerEventData) override;
     virtual void EndAbility(const FGameplayAbilitySpecHandle Handle,const FGameplayAbilityActorInfo* ActorInfo,const FGameplayAbilityActivationInfo ActivationInfo,bool bReplicateEndAbility,bool bWasCancelled) override;
 private:
+    // 只在本次能力修改重力后恢复，失败激活不能覆盖角色原来的重力。
+    float SavedGravityScale=1.f;
+    bool bGravityOverridden=false;
     UFUNCTION() void FinishDash();
     UPROPERTY(Transient) TObjectPtr<UAbilityTask_ApplyRootMotionConstantForce> MotionTask;
 };

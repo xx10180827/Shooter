@@ -14,6 +14,8 @@ UShooterDashAbility::UShooterDashAbility()
     CostGameplayEffectClass=UShooterDashCostEffect::StaticClass();
     CooldownGameplayEffectClass=UShooterDashCooldownEffect::StaticClass();
     ActivationOwnedTags.AddTag(ShooterGameplayTags::State_Dashing);
+    // 无敌随能力生命周期自动撤销，不延伸至冷却或暂停期间。
+    ActivationOwnedTags.AddTag(ShooterGameplayTags::State_Invulnerable);
     ActivationBlockedTags.AddTag(ShooterGameplayTags::State_Dashing);
     ActivationBlockedTags.AddTag(ShooterGameplayTags::State_Reloading);
 }
@@ -37,8 +39,12 @@ void UShooterDashAbility::ActivateAbility(const FGameplayAbilitySpecHandle Handl
     if(!IsActive()||!Dash->CanStartDash()) { if(IsActive()) { EndAbility(Handle,ActorInfo,ActivationInfo,true,true); } return; }
     const float Distance=FMath::IsFinite(Dash->DashDistance)?FMath::Clamp(Dash->DashDistance,50.f,1000.f):480.f;
     const float Duration=FMath::IsFinite(Dash->DashDuration)?FMath::Clamp(Dash->DashDuration,.05f,.8f):.22f;
-    // Root Motion Source 经 CharacterMovement 正常扫掠，保留墙体碰撞、地面移动和重力。
-    MotionTask=UAbilityTask_ApplyRootMotionConstantForce::ApplyRootMotionConstantForce(this,TEXT("DashMotion"),Dash->GetDashDirection(),Distance/Duration,Duration,false,nullptr,ERootMotionFinishVelocityMode::SetVelocity,FVector::ZeroVector,0.f,true);
+    // 地面/空中共用水平位移；只暂停重力，不切到飞行模式，也不关闭碰撞。
+    auto* Movement=Player->GetCharacterMovement();
+    SavedGravityScale=Movement->GravityScale; bGravityOverridden=true;
+    Movement->GravityScale=0.f; Movement->Velocity.Z=0.f;
+    // 同时覆盖 Root Motion 的 Z 速度，防止上升、下落或跳跃输入叠加。
+    MotionTask=UAbilityTask_ApplyRootMotionConstantForce::ApplyRootMotionConstantForce(this,TEXT("DashMotion"),Dash->GetDashDirection(),Distance/Duration,Duration,false,nullptr,ERootMotionFinishVelocityMode::SetVelocity,FVector::ZeroVector,0.f,false);
     if(!MotionTask) { EndAbility(Handle,ActorInfo,ActivationInfo,true,true); return; }
     // 引擎恒定力默认执行完整结束帧。短闪避需要按剩余时长裁剪，防止卡顿时超过配置距离。
     if(auto Source=Player->GetCharacterMovement()->GetRootMotionSource(TEXT("DashMotion")))
@@ -56,6 +62,14 @@ void UShooterDashAbility::EndAbility(const FGameplayAbilitySpecHandle Handle,con
     }
     // 先移除 Root Motion 再清速度，避免暂停恢复或死亡后被旧任务重新推动。
     if(MotionTask) { MotionTask->OnFinish.RemoveAll(this); MotionTask->EndTask(); MotionTask=nullptr; }
-    if(auto* Player=Cast<AMyShooter>(ActorInfo->AvatarActor.Get())) { Player->GetCharacterMovement()->StopMovementImmediately(); if(auto* Aim=Player->GetShooterAim()) { Aim->SetDashPresentation(false,bWasCancelled); } }
+    if(auto* Player=Cast<AMyShooter>(ActorInfo->AvatarActor.Get()))
+    {
+        auto* Movement=Player->GetCharacterMovement();
+        if(bGravityOverridden) { Movement->GravityScale=SavedGravityScale; }
+        // 空中从零竖直速度恢复下落；死亡若已 DisableMovement，不把角色改回可移动。
+        Movement->StopMovementImmediately();
+        if(auto* Aim=Player->GetShooterAim()) { Aim->SetDashPresentation(false,bWasCancelled); }
+    }
+    bGravityOverridden=false;
     Super::EndAbility(Handle,ActorInfo,ActivationInfo,bReplicateEndAbility,bWasCancelled);
 }

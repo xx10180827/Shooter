@@ -37,6 +37,7 @@ public:
     // 同时约束当前值和基础值，效果执行后再处理最大血量改变带来的裁剪。
     virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
     virtual void PreAttributeBaseChange(const FGameplayAttribute& Attribute, float& NewValue) const override;
+    virtual bool PreGameplayEffectExecute(FGameplayEffectModCallbackData& Data) override;
     virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
 
 protected:

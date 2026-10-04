@@ -27,6 +27,7 @@ bool UShooterDamageLibrary::ApplyGASDamage(AActor* SourceActor, AActor* TargetAc
     UAbilitySystemComponent* TargetASC =
         UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor);
     if (!IsValid(TargetASC) || TargetASC->HasMatchingGameplayTag(ShooterGameplayTags::State_Dead)
+        || TargetASC->HasMatchingGameplayTag(ShooterGameplayTags::State_Invulnerable)
         || !TargetASC->HasAttributeSetForAttribute(UShooterAttributeSet::GetHealthAttribute()))
     {
         return false;

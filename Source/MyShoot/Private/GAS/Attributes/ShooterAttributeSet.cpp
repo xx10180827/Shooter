@@ -43,6 +43,17 @@ void UShooterAttributeSet::PreAttributeBaseChange(const FGameplayAttribute& Attr
     ClampAttribute(Attribute, NewValue);
 }
 
+bool UShooterAttributeSet::PreGameplayEffectExecute(FGameplayEffectModCallbackData& Data)
+{
+    if(!Super::PreGameplayEffectExecute(Data)) { return false; }
+    // 兜底拦截直接应用的伤害 GE；治疗、体力成本和恢复仍然正常结算。
+    const auto* ASC=GetOwningAbilitySystemComponent();
+    if(Data.EvaluatedData.Attribute==GetHealthAttribute()
+        && Data.EvaluatedData.ModifierOp==EGameplayModOp::Additive && Data.EvaluatedData.Magnitude<0.f
+        && ASC && ASC->HasMatchingGameplayTag(ShooterGameplayTags::State_Invulnerable)) { return false; }
+    return true;
+}
+
 void UShooterAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
 {
     Super::PostGameplayEffectExecute(Data);

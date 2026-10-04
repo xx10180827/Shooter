@@ -4,6 +4,7 @@
 namespace ShooterGameplayTags
 {
     UE_DEFINE_GAMEPLAY_TAG(State_Dashing, "State.Dashing");
+    UE_DEFINE_GAMEPLAY_TAG(State_Invulnerable, "State.Invulnerable");
     UE_DEFINE_GAMEPLAY_TAG(Cooldown_Dash, "Cooldown.Dash");
     UE_DEFINE_GAMEPLAY_TAG(State_Aiming, "State.Aiming");
     UE_DEFINE_GAMEPLAY_TAG(State_Dead, "State.Dead");

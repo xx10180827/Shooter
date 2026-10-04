@@ -24,7 +24,7 @@ bool UShooterDashComponent::CanStartDash() const
     const auto* C=Character.Get(); const auto* ASC=AbilitySystem.Get();
     return IsValid(C)&&!C->IsActorBeingDestroyed()&&!C->HasGASDeathStarted()&&C->GetGASHealth()>0
         &&C->GetController()&&!C->GetController()->IsMoveInputIgnored()&&AShooterGameMode::IsCombatAllowed(this)
-        &&C->GetCharacterMovement()->IsMovingOnGround()&&ASC
+        &&(C->GetCharacterMovement()->IsMovingOnGround()||C->GetCharacterMovement()->IsFalling())&&ASC
         &&!ASC->HasMatchingGameplayTag(ShooterGameplayTags::State_Dead)
         &&!ASC->HasMatchingGameplayTag(ShooterGameplayTags::State_Reloading);
 }
