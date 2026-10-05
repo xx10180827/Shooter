@@ -15,6 +15,9 @@ class MYSHOOT_API UShooterWeaponDefinition : public UDataAsset
 public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Weapon")
     FText DisplayName;
+    /** 稳定的瞄具配置键；未来 Scope2x/Scope4x 可映射不同用户 X/Y 倍率，未知键回退 Default。 */
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Aim")
+    FName AimSensitivityProfile=TEXT("Default");
     /** 成功发射后的视角上抬角度；0 保持已有武器行为，不受鼠标灵敏度/反转影响。 */
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Recoil", meta=(ClampMin="0", ClampMax="15"))
     float RecoilPitch=0.f;

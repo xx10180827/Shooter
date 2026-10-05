@@ -1,4 +1,6 @@
 #include "Player/ShooterPlayerController.h"
+#include "Player/ShooterPlayerInput.h"
+#include "UI/ShooterMouseSettingsWidget.h"
 #include "UI/ShooterHealthWidget.h"
 #include "UI/ShooterPickupWidget.h"
 #include "UI/ShooterDashWidget.h"
@@ -11,6 +13,8 @@
 #include "Components/InputComponent.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include "Engine/LocalPlayer.h"
+
+AShooterPlayerController::AShooterPlayerController() { OverridePlayerInputClass=UShooterPlayerInput::StaticClass(); }
 
 void AShooterPlayerController::BeginPlay()
 {
@@ -46,6 +50,11 @@ void AShooterPlayerController::OnPossess(APawn* InPawn)
 void AShooterPlayerController::RefreshHUD()
 {
     if (!IsLocalController() || !GetLocalPlayer()) { return; }
+    if(!MouseSettingsWidget)
+    {
+        MouseSettingsWidget=CreateWidget<UShooterMouseSettingsWidget>(this,UShooterMouseSettingsWidget::StaticClass());
+        if(MouseSettingsWidget) { MouseSettingsWidget->AddToPlayerScreen(110); }
+    }
     if(!DashWidget)
     {
         DashWidget=CreateWidget<UShooterDashWidget>(this,UShooterDashWidget::StaticClass());
@@ -115,6 +124,7 @@ void AShooterPlayerController::HandleRoundChanged(EShooterRoundState State)
     if (AmmoWidget) { AmmoWidget->SetVisibility(bPlaying ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed); }
     RefreshCrosshair();
     if (MenuWidget) { MenuWidget->ShowState(State); }
+    if(MouseSettingsWidget) { MouseSettingsWidget->ShowForState(State); }
     if (bPlaying)
     {
         FInputModeGameOnly Mode; Mode.SetConsumeCaptureMouseDown(false); SetInputMode(Mode);
@@ -175,6 +185,7 @@ void AShooterPlayerController::EndPlay(const EEndPlayReason::Type Reason)
     if (ObservedGameMode.IsValid()) { ObservedGameMode->OnRoundChanged.RemoveDynamic(this, &AShooterPlayerController::HandleRoundChanged); }
     if (HealthWidget) { HealthWidget->ObserveCharacter(nullptr); HealthWidget->RemoveFromParent(); HealthWidget = nullptr; }
     if (AmmoWidget) { AmmoWidget->ObserveWeapon(nullptr); AmmoWidget->RemoveFromParent(); AmmoWidget = nullptr; }
+    if(MouseSettingsWidget) { MouseSettingsWidget->RemoveFromParent(); MouseSettingsWidget=nullptr; }
     if (MenuWidget) { MenuWidget->RemoveFromParent(); MenuWidget = nullptr; }
     if(PickupWidget) { PickupWidget->RemoveFromParent(); PickupWidget=nullptr; }
     if(DashWidget) { DashWidget->RemoveFromParent(); DashWidget=nullptr; }

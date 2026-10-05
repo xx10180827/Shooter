@@ -3,6 +3,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Game/ShooterGameMode.h"
 #include "ShooterPlayerController.generated.h"
+class UShooterMouseSettingsWidget;
 class UShooterPickupWidget;
 class UShooterDashWidget;
 class UShooterHealthWidget;
@@ -17,6 +18,8 @@ class MYSHOOT_API AShooterPlayerController : public APlayerController
 {
     GENERATED_BODY()
 public:
+    AShooterPlayerController();
+    UShooterMouseSettingsWidget* GetMouseSettingsWidget() const { return MouseSettingsWidget; }
     UFUNCTION(BlueprintPure, Category="Shooter|HUD")
     UShooterHealthWidget* GetHealthWidget() const { return HealthWidget; }
     UShooterAmmoWidget* GetAmmoWidget() const { return AmmoWidget; }
@@ -39,6 +42,7 @@ private:
     UFUNCTION() void HandleAimingChanged(bool bIsAiming);
     void ToggleGameMenu();
     UFUNCTION() void HandleRoundChanged(EShooterRoundState State);
+    UPROPERTY(Transient) TObjectPtr<UShooterMouseSettingsWidget> MouseSettingsWidget;
     UPROPERTY(Transient) TObjectPtr<UShooterDashWidget> DashWidget;
     UPROPERTY(Transient) TObjectPtr<UShooterPickupWidget> PickupWidget;
     UPROPERTY(Transient) TObjectPtr<UShooterHealthWidget> HealthWidget;

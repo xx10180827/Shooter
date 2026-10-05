@@ -23,6 +23,7 @@
 #include "HAL/FileManager.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/PlatformMisc.h"
+#include "TimerManager.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogShooterSmoke, Log, All);
 
@@ -108,19 +109,33 @@ bool UShooterPackagedSmokeSubsystem::Step(float DeltaSeconds)
             || !Check(!Player->GetShooterWeapon()->StartFiring(),TEXT("Menu blocks firing"))) { return false; }
         Capture(TEXT("01-StartMenu.png")); Next(1,1.0f); break;
     case 1:
+    {
         if (!Click(TEXT("StartButton")) || !Check(GM->GetRoundState()==EShooterRoundState::Playing,TEXT("Actual start button enters gameplay"))) { return false; }
         for (TActorIterator<AShooterCharacterBase> It(World); It; ++It)
         {
             if (*It!=Player && Cast<AShooterAIController>(It->GetController())) { TargetEnemy=*It; break; }
         }
         if (!Check(TargetEnemy.IsValid(),TEXT("Cooked enemy owns native AI controller"))) { return false; }
-        Player->SetActorLocation(TargetEnemy->GetActorLocation()+FVector(180,0,0),false);
+        // 当前 AI 按视野攻击；在已验证的空地布置面对面的射击，避免旧测试落入墙后或背面。
+        for(TActorIterator<AShooterAIController> It(World);It;++It)
+        {
+            if(It->GetPawn()!=TargetEnemy.Get()) { It->SuspendCombat(); World->GetTimerManager().ClearAllTimersForObject(*It); }
+        }
+        Player->SetActorLocation(FVector(-3070,1450,820),false,nullptr,ETeleportType::TeleportPhysics);
+        TargetEnemy->SetActorLocation(FVector(-2570,1450,820),false,nullptr,ETeleportType::TeleportPhysics);
+        TargetEnemy->GetCharacterMovement()->DisableMovement();
+        TargetEnemy->SetActorRotation(FRotator(0,180,0));
+        auto* TestAI=Cast<AShooterAIController>(TargetEnemy->GetController());
+        TestAI->SetControlRotation(FRotator(0,180,0)); TestAI->SetCombatTarget(Player);
         Player->GetCharacterMovement()->DisableMovement();
         Next(2,1.5f); break;
+    }
     case 2:
         if (!Check(Player && Player->GetGASHealth()<100 && Player->GetGASHealth()>0,TEXT("Actual AI attack damages living player"))
             || !Check(PC->GetHealthWidget()->GetDisplayedHealth()==Player->GetGASHealth(),TEXT("Cooked health widget follows GAS damage"))) { return false; }
-        Player->SetActorLocation(TargetEnemy->GetActorLocation()+FVector(500,0,0),false);
+        // AI 伤害验证完毕后停止其攻击，射击/换弹断言不受其他战斗干扰。
+        for(TActorIterator<AShooterAIController> It(World);It;++It)
+        { It->SuspendCombat(); World->GetTimerManager().ClearAllTimersForObject(*It); }
         // 保持测试靶位置稳定；仍使用真实武器射线、GAS 和蓝图资源。
         TargetEnemy->GetCharacterMovement()->DisableMovement();
         Next(3); break;
@@ -137,13 +152,13 @@ bool UShooterPackagedSmokeSubsystem::Step(float DeltaSeconds)
         {
             UShooterWeaponComponent* Weapon=Player->GetShooterWeapon();
             const bool bAccepted=Weapon->StartFiring(); Weapon->StopFiring();
-            int32 Bullets=0; for (TActorIterator<AShooterBulletVisual> It(World); It; ++It) { ++Bullets; }
+            int32 Bullets=0; for (TActorIterator<AShooterBulletVisual> It(World); It; ++It) { if(It->GetOwner()==Player) { ++Bullets; } }
             if (!Check(bAccepted && Weapon->GetCurrentAmmo()==29 && PC->GetAmmoWidget()->GetDisplayedAmmo()==29,TEXT("Real shot consumes one round and updates HUD"))
                 || !Check(FMath::IsNearlyEqual(TargetEnemy->GetGASHealth(),EnemyHealthBeforeShot-25),TEXT("Real packaged hitscan deals exactly 25 damage"))
                 || !Check(Bullets==1,TEXT("Real shot spawns one cosmetic bullet"))) { return false; }
             Capture(TEXT("02-Gameplay.png"));
             if (!Check(Weapon->StartReloading(),TEXT("Reload accepted"))) { return false; }
-            Next(5,1.8f);
+            Next(5,Weapon->GetReloadDuration()+.3f);
         } break;
     case 5:
         if (!Check(Player->GetShooterWeapon()->GetCurrentAmmo()==30 && Player->GetShooterWeapon()->GetReserveAmmo()==89

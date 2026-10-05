@@ -14,6 +14,8 @@ public:
 private:
     bool Step(float DeltaTime);
     bool StepDash(float DeltaTime);
+    bool StepMouseSettings(float DeltaTime);
+    bool bMouseSettings=false;
     bool bDash=false;
     FVector DashStart=FVector::ZeroVector;
     bool StepPickup(float DeltaTime);
