@@ -159,15 +159,21 @@ bool UShooterWeaponComponent::TryFireOneShot()
         if (Hit.bBlockingHit && Hit.GetActor()) { ++HitCounts.FindOrAdd(Hit.GetActor()); TargetHits.FindOrAdd(Hit.GetActor()) = Hit; }
     }
     // 同一目标的弹丸合并一次 GAS 结算，避免多次死亡/警觉回调；各射线仍独立检查遮挡。
+    FShooterShotResult ShotResult; ShotResult.ShotId = ++ResolvedShotId;
     for (const auto& Pair : HitCounts)
     {
-        if (IsValid(Pair.Key)) { UShooterDamageLibrary::ApplyGASDamage(Character, Pair.Key, Damage*Pair.Value, Character, TargetHits[Pair.Key]); }
+        if (IsValid(Pair.Key))
+        {
+            const auto Result = UShooterDamageLibrary::ResolveGASDamage(Character, Pair.Key, Damage * Pair.Value, Character, TargetHits[Pair.Key]);
+            if (Result.WasDamaged()) { ShotResult.Targets.Add(Result); }
+        }
     }
     if (IsValid(this) && !IsBeingDestroyed() && !Character->IsActorBeingDestroyed())
     {
         if (FireSound && GetWorld()->GetNetMode() != NM_DedicatedServer)
         { UGameplayStatics::PlaySound2D(this, FireSound, FireSoundVolume, 1.f, 0.f, nullptr, Character, false); }
         for (const auto& Hit : Hits) { SpawnBulletVisual(Hit, Start); }
+        OnShotResolved.Broadcast(ShotResult);
         OnAmmoChanged.Broadcast(OldAmmo, CurrentAmmo);
         if (IsValid(this) && !IsBeingDestroyed() && !Character->IsActorBeingDestroyed())
         {

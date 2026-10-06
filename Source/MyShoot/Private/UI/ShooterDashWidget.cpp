@@ -99,3 +99,9 @@ int32 UShooterDashWidget::NativePaint(const FPaintArgs& Args,const FGeometry& Ge
     Text(Icon+FVector2D(10,69),TEXT("SHIFT"),11,FLinearColor::White);
     return Base+4;
 }
+FVector2D UShooterDashWidget::GetStaminaBottomInAbsoluteSpace() const
+{
+    const auto& Geometry = GetCachedGeometry();
+    const auto Size = Geometry.GetLocalSize();
+    return Geometry.LocalToAbsolute(FVector2D(Size.X * .5f, Size.Y * .64f + 90.f));
+}

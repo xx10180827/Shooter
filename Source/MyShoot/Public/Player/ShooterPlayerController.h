@@ -3,6 +3,8 @@
 #include "GameFramework/PlayerController.h"
 #include "Game/ShooterGameMode.h"
 #include "ShooterPlayerController.generated.h"
+class UShooterCombatFeedbackComponent;
+class UShooterCombatFeedbackWidget;
 class UShooterMouseSettingsWidget;
 class UShooterPickupWidget;
 class UShooterDashWidget;
@@ -19,6 +21,8 @@ class MYSHOOT_API AShooterPlayerController : public APlayerController
     GENERATED_BODY()
 public:
     AShooterPlayerController();
+    UShooterCombatFeedbackComponent* GetCombatFeedback() const { return CombatFeedback; }
+    UShooterDashWidget* GetDashWidget() const { return DashWidget; }
     UShooterMouseSettingsWidget* GetMouseSettingsWidget() const { return MouseSettingsWidget; }
     UFUNCTION(BlueprintPure, Category="Shooter|HUD")
     UShooterHealthWidget* GetHealthWidget() const { return HealthWidget; }
@@ -37,6 +41,8 @@ protected:
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shooter|HUD")
     TSubclassOf<UShooterMenuWidget> MenuWidgetClass;
 private:
+    UPROPERTY(VisibleAnywhere, Category="Shooter|Feedback") TObjectPtr<UShooterCombatFeedbackComponent> CombatFeedback;
+    UPROPERTY(Transient) TObjectPtr<UShooterCombatFeedbackWidget> CombatFeedbackWidget;
     void RefreshHUD();
     void RefreshCrosshair();
     UFUNCTION() void HandleAimingChanged(bool bIsAiming);

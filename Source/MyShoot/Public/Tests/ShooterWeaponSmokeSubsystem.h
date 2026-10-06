@@ -15,6 +15,11 @@ private:
     bool Step(float DeltaTime);
     bool StepDash(float DeltaTime);
     bool StepMouseSettings(float DeltaTime);
+    bool StepCombatFeedback(float DeltaTime);
+    bool bCombatFeedback=false;
+    TWeakObjectPtr<AActor> FeedbackTarget;
+    double FeedbackAutomaticUntil = 0.;
+    int32 FeedbackBeforeShotgun = 0;
     bool bMouseSettings=false;
     bool bDash=false;
     FVector DashStart=FVector::ZeroVector;

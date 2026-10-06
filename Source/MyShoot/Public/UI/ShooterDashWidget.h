@@ -12,6 +12,8 @@ class MYSHOOT_API UShooterDashWidget : public UUserWidget
     GENERATED_BODY()
 public:
     UShooterDashWidget(const FObjectInitializer& ObjectInitializer);
+    // 为相邻 HUD 提供实际体力面板底边，避免各界面重复猜测位置。
+    FVector2D GetStaminaBottomInAbsoluteSpace() const;
 protected:
     virtual void NativeTick(const FGeometry& Geometry,float DeltaTime) override;
     virtual void NativeDestruct() override;

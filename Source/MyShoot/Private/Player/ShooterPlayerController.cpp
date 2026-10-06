@@ -1,5 +1,7 @@
 #include "Player/ShooterPlayerController.h"
 #include "Player/ShooterPlayerInput.h"
+#include "Combat/ShooterCombatFeedbackComponent.h"
+#include "UI/ShooterCombatFeedbackWidget.h"
 #include "UI/ShooterMouseSettingsWidget.h"
 #include "UI/ShooterHealthWidget.h"
 #include "UI/ShooterPickupWidget.h"
@@ -14,7 +16,11 @@
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include "Engine/LocalPlayer.h"
 
-AShooterPlayerController::AShooterPlayerController() { OverridePlayerInputClass=UShooterPlayerInput::StaticClass(); }
+AShooterPlayerController::AShooterPlayerController()
+{
+    OverridePlayerInputClass = UShooterPlayerInput::StaticClass();
+    CombatFeedback = CreateDefaultSubobject<UShooterCombatFeedbackComponent>(TEXT("CombatFeedback"));
+}
 
 void AShooterPlayerController::BeginPlay()
 {
@@ -50,6 +56,13 @@ void AShooterPlayerController::OnPossess(APawn* InPawn)
 void AShooterPlayerController::RefreshHUD()
 {
     if (!IsLocalController() || !GetLocalPlayer()) { return; }
+    if (!CombatFeedbackWidget)
+    {
+        CombatFeedbackWidget = CreateWidget<UShooterCombatFeedbackWidget>(this, UShooterCombatFeedbackWidget::StaticClass());
+        if (CombatFeedbackWidget) { CombatFeedbackWidget->AddToPlayerScreen(105); CombatFeedbackWidget->SetVisibility(ESlateVisibility::HitTestInvisible); }
+    }
+    CombatFeedback->ObserveWeapon(GetPawn() ? GetPawn()->FindComponentByClass<UShooterWeaponComponent>() : nullptr);
+    if (CombatFeedbackWidget) { CombatFeedbackWidget->ObserveFeedback(CombatFeedback); }
     if(!MouseSettingsWidget)
     {
         MouseSettingsWidget=CreateWidget<UShooterMouseSettingsWidget>(this,UShooterMouseSettingsWidget::StaticClass());
@@ -107,6 +120,8 @@ void AShooterPlayerController::HandleRoundChanged(EShooterRoundState State)
 {
     if (!IsLocalController() || !GetLocalPlayer()) { return; }
     const bool bPlaying = State == EShooterRoundState::Playing;
+    CombatFeedback->HandleRoundState(State);
+    if (CombatFeedbackWidget) { CombatFeedbackWidget->SetVisibility(bPlaying || State == EShooterRoundState::Won ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed); }
     SetPause(State == EShooterRoundState::Menu || State == EShooterRoundState::Paused);
     // 避免每次状态切换累积 IgnoreInput 计数；新一局由关卡重载完全恢复。
     ResetIgnoreMoveInput(); ResetIgnoreLookInput();
@@ -170,6 +185,7 @@ void AShooterPlayerController::RefreshCrosshair()
 }
 void AShooterPlayerController::OnUnPossess()
 {
+    CombatFeedback->ObserveWeapon(nullptr);
     if (HealthWidget) { HealthWidget->ObserveCharacter(nullptr); }
     if (AmmoWidget) { AmmoWidget->ObserveWeapon(nullptr); }
     if (ObservedAim.IsValid())
@@ -182,6 +198,8 @@ void AShooterPlayerController::OnUnPossess()
 }
 void AShooterPlayerController::EndPlay(const EEndPlayReason::Type Reason)
 {
+    CombatFeedback->ObserveWeapon(nullptr);
+    if (CombatFeedbackWidget) { CombatFeedbackWidget->RemoveFromParent(); CombatFeedbackWidget = nullptr; }
     if (ObservedGameMode.IsValid()) { ObservedGameMode->OnRoundChanged.RemoveDynamic(this, &AShooterPlayerController::HandleRoundChanged); }
     if (HealthWidget) { HealthWidget->ObserveCharacter(nullptr); HealthWidget->RemoveFromParent(); HealthWidget = nullptr; }
     if (AmmoWidget) { AmmoWidget->ObserveWeapon(nullptr); AmmoWidget->RemoveFromParent(); AmmoWidget = nullptr; }

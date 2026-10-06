@@ -21,6 +21,7 @@ Saved/
 # Editor-specific local settings
 .vscode/
 .idea/
+*.DotSettings.user
 
 # OS files
 .DS_Store

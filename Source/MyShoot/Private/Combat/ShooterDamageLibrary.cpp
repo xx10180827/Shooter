@@ -7,21 +7,22 @@
 #include "GAS/Effects/ShooterDamageEffect.h"
 #include "GAS/ShooterGameplayTags.h"
 
-bool UShooterDamageLibrary::ApplyGASDamage(AActor* SourceActor, AActor* TargetActor,
+FShooterDamageResult UShooterDamageLibrary::ResolveGASDamage(AActor* SourceActor, AActor* TargetActor,
     float Damage, AActor* DamageCauser, const FHitResult& HitResult)
 {
+    FShooterDamageResult Result; Result.Target = TargetActor; Result.Hit = HitResult;
     // 入口校验：排除已销毁对象、非权威端和非法伤害，避免生成无效效果。
     if (!IsValid(SourceActor) || !IsValid(TargetActor)
         || SourceActor->IsActorBeingDestroyed() || TargetActor->IsActorBeingDestroyed()
         || !SourceActor->HasAuthority() || !TargetActor->HasAuthority()
         || !FMath::IsFinite(Damage) || Damage <= 0.0f)
     {
-        return false;
+        return Result;
     }
 
     if (const AShooterCharacterBase* SourceCharacter = Cast<AShooterCharacterBase>(SourceActor))
     {
-        if (SourceCharacter->HasGASDeathStarted()) { return false; }
+        if (SourceCharacter->HasGASDeathStarted()) { return Result; }
     }
 
     UAbilitySystemComponent* TargetASC =
@@ -30,21 +31,21 @@ bool UShooterDamageLibrary::ApplyGASDamage(AActor* SourceActor, AActor* TargetAc
         || TargetASC->HasMatchingGameplayTag(ShooterGameplayTags::State_Invulnerable)
         || !TargetASC->HasAttributeSetForAttribute(UShooterAttributeSet::GetHealthAttribute()))
     {
-        return false;
+        return Result;
     }
 
     if (const AShooterCharacterBase* TargetCharacter = Cast<AShooterCharacterBase>(TargetActor))
     {
         if (!TargetCharacter->IsGASInitialized() || TargetCharacter->HasGASDeathStarted())
         {
-            return false;
+            return Result;
         }
     }
 
     const float HealthBefore = TargetASC->GetNumericAttribute(UShooterAttributeSet::GetHealthAttribute());
     if (!FMath::IsFinite(HealthBefore) || HealthBefore <= 0.0f)
     {
-        return false;
+        return Result;
     }
 
     UAbilitySystemComponent* SourceASC =
@@ -66,7 +67,7 @@ bool UShooterDamageLibrary::ApplyGASDamage(AActor* SourceActor, AActor* TargetAc
         UShooterDamageEffect::StaticClass(), 1.0f, Context);
     if (!Spec.IsValid())
     {
-        return false;
+        return Result;
     }
 
     Spec.Data->SetSetByCallerMagnitude(UShooterDamageEffect::GetHealthDeltaTag(), -Damage);
@@ -81,5 +82,13 @@ bool UShooterDamageLibrary::ApplyGASDamage(AActor* SourceActor, AActor* TargetAc
         UAISense_Damage::ReportDamageEvent(TargetActor, TargetActor, SourceActor, HealthBefore-HealthAfter,
             SourceActor->GetActorLocation(), HitResult.bBlockingHit ? FVector(HitResult.ImpactPoint) : TargetActor->GetActorLocation(), TEXT("ShooterDamage"));
     }
-    return bDamaged;
+    Result.ActualDamage = FMath::Max(0.f, HealthBefore - HealthAfter);
+    Result.bKilled = bDamaged && HealthAfter <= 0.f;
+    return Result;
+}
+
+bool UShooterDamageLibrary::ApplyGASDamage(AActor* SourceActor, AActor* TargetActor,
+    float Damage, AActor* DamageCauser, const FHitResult& HitResult)
+{
+    return ResolveGASDamage(SourceActor, TargetActor, Damage, DamageCauser, HitResult).WasDamaged();
 }

@@ -33,14 +33,16 @@ void UShooterWeaponSmokeSubsystem::Initialize(FSubsystemCollectionBase& Collecti
 {
     Super::Initialize(Collection);
 #if !UE_BUILD_SHIPPING
-    if(FParse::Param(FCommandLine::Get(),TEXT("ShooterMouseSettingsSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("ShooterDashSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("ShooterWeaponSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("ShooterPickupSmoke")))
+    if(FParse::Param(FCommandLine::Get(),TEXT("ShooterCombatFeedbackSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("ShooterMouseSettingsSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("ShooterDashSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("ShooterWeaponSmoke"))||FParse::Param(FCommandLine::Get(),TEXT("ShooterPickupSmoke")))
     {
+        bCombatFeedback=FParse::Param(FCommandLine::Get(),TEXT("ShooterCombatFeedbackSmoke"));
         bMouseSettings=FParse::Param(FCommandLine::Get(),TEXT("ShooterMouseSettingsSmoke"));
         bDash=FParse::Param(FCommandLine::Get(),TEXT("ShooterDashSmoke"));
         bPickup=FParse::Param(FCommandLine::Get(),TEXT("ShooterPickupSmoke"));
         bPolish=FParse::Param(FCommandLine::Get(),TEXT("ShooterShotgunPolishSmoke"));
         Output=FPaths::ProjectSavedDir()/(bDash?TEXT("T17_AirDash/MapSmoke"):bPickup?TEXT("T15_PickupRing/MapSmoke"):(bPolish?TEXT("T14_Revision/AfterIK"):TEXT("T14/MapSmoke"))); IFileManager::Get().MakeDirectory(*Output,true);
         if(bMouseSettings) { Output=FPaths::ProjectSavedDir()/(FParse::Param(FCommandLine::Get(),TEXT("ShooterMouseSettingsVerify"))?TEXT("T19_Mouse/Verify"):TEXT("T19_Mouse/Write")); IFileManager::Get().MakeDirectory(*Output,true); }
+        if(bCombatFeedback) { Output=FPaths::ProjectSavedDir()/TEXT("T20_Feedback/MapSmoke"); IFileManager::Get().MakeDirectory(*Output,true); }
         Deadline=FPlatformTime::Seconds()+180;
         TickHandle=FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this,&UShooterWeaponSmokeSubsystem::Step),.01f);
     }
@@ -63,6 +65,7 @@ void UShooterWeaponSmokeSubsystem::Next(int32 NewPhase,float Delay) { Phase=NewP
 void UShooterWeaponSmokeSubsystem::Capture(const TCHAR* Name) { FScreenshotRequest::RequestScreenshot(Output/Name,true,false); }
 bool UShooterWeaponSmokeSubsystem::Step(float DeltaTime)
 {
+    if(bCombatFeedback) { return StepCombatFeedback(DeltaTime); }
     if(bMouseSettings) { return StepMouseSettings(DeltaTime); }
     if(bDash) { return StepDash(DeltaTime); }
     if(bPickup) { return StepPickup(DeltaTime); }

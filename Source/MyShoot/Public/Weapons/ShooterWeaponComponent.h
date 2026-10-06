@@ -5,6 +5,7 @@
 #include "GameplayAbilitySpecHandle.h"
 #include "GameplayTagContainer.h"
 #include "Engine/HitResult.h"
+#include "Combat/ShooterCombatResult.h"
 #include "ShooterWeaponComponent.generated.h"
 
 class UShooterWeaponDefinition;
@@ -15,6 +16,7 @@ class UAbilitySystemComponent;
 class UShooterFireAbility;
 class UShooterReloadAbility;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FShooterShotResolved, const FShooterShotResult&, Result);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FShooterInventoryChanged);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FShooterWeaponChanged, int32, OldSlot, int32, NewSlot);
 
@@ -34,6 +36,8 @@ class MYSHOOT_API UShooterWeaponComponent : public UActorComponent
 
 public:
     UShooterWeaponComponent();
+    /** 发射完成且 GAS 已结算的单发结果；与旧开火表现 OnShotFired 分开。 */
+    UPROPERTY(BlueprintAssignable, Category="Shooter|Combat") FShooterShotResolved OnShotResolved;
 
     /** 槽位从 0 开始。先取消旧能力，再保存状态；非法、死亡、暂停或回调重入时拒绝。 */
     UFUNCTION(BlueprintCallable, Category="Shooter|Weapon")
@@ -170,6 +174,7 @@ protected:
     TEnumAsByte<ECollisionChannel> TraceChannel = ECC_Visibility;
 
 private:
+    int32 ResolvedShotId = 0;
     // 当前槽的数值缓存仍供旧蓝图 Getter 使用；换槽时写回各自状态，资源本身不变。
     struct FWeaponRuntimeState
     {
