@@ -4,6 +4,20 @@
 
 项目重点是 Gameplay 规则、组件职责、能力生命周期和中断清理。C++ 管理规则与状态，Blueprint 配置模型、动画、资源和部分表现；保留断开的旧蓝图节点供学习对照。当前功能已逐阶段体验验收，最新独立包的验证状态见 [最终交付记录](Docs/T21_FINAL_DELIVERY.md)。
 
+## 实际包截图
+
+下图来自 T21 Windows Development 独立包。最新包已完成构建和自动运行检查，最终手感与兼容性等待人工验收。
+
+![战斗、金色击杀提示及多杀徽章](Docs/Images/T21/CombatFeedback.png)
+
+<details>
+<summary>开始菜单与鼠标设置</summary>
+
+![开始菜单](Docs/Images/T21/StartMenu.png)
+
+![鼠标设置默认值](Docs/Images/T21/MouseSettings.png)
+
+</details>
 ## 运行与操作
 
 源码分支：**[develop](https://github.com/xx10180827/Shooter/tree/develop)**。本仓库不包含编译缓存、游戏安装包或引擎。
@@ -12,7 +26,7 @@
 - 使用 UE5.5 打开 MyShoot.uproject；首次运行先编译 MyShootEditor / Win64 / Development。
 - 打开 /Game/Maps/bloodstrike，PIE 后点击 **START GAME**。地图使用 Mygame_GM。
 - 独立包入口为 Windows/MyShoot.exe。复制给其他电脑时必须携带整个 Windows 文件夹，不能只复制 exe。运行独立包无须安装 UE 编辑器。
-- 本轮本地验收包约定目录：PackagedBuilds/T21_20261007/Windows。它是本地输出路径，**不是 GitHub 下载链接**；构建和验收结果见交付记录。
+- 本次已构建的本地验收包目录：PackagedBuilds/T21_20261007/Windows。它是本地输出路径，**不是 GitHub 下载链接**；构建和验收结果见交付记录。
 
 | 操作 | 功能 |
 | --- | --- |
